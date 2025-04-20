@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push: 
+    branches:
+    - main
+    tags:
+    - 'v[0-9]+\.[0-9]+\.[0-9]+-?**'
+  pull_request: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: 1.84.1
+        components: rustfmt
+        target: wasm32-unknown-unknown,wasm32-wasip2
+    - name: Install cargo binstall
+      uses: cargo-bins/cargo-binstall@main
+    - name: Install cargo component
+      run: cargo binstall --force cargo-component
+    - name: Install wkg
+      run: cargo binstall --force wkg
+    - name: Fetch wit
+      run: make wit
+    - name: Check for drift in generated wit
+      run: git diff --exit-code .
+    - name: Build components
+      run: make components
+    - name: Collect components.tar
+      run: tar -cvf ../components.tar *.wasm*
+      working-directory: ./lib
+    - name: Upload components.tar
+      uses: actions/upload-artifact@v4
+      with:
+        name: components.tar
+        path: components.tar
+        retention-days: 7
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+    - build
+    permissions:
+      contents: write
+      packages: write
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: 1.84.1
+        components: rustfmt
+        target: wasm32-unknown-unknown
+    - name: Install cargo binstall
+      uses: cargo-bins/cargo-binstall@main
+    - name: Install wkg
+      run: cargo binstall --force wkg
+    - name: Get the version
+      id: get_version
+      run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+    - name: Download components.tar
+      uses: actions/download-artifact@v4
+      with:
+        name: components.tar
+    - name: Extract components
+      run: tar -xvf components.tar -C lib
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Publish components to gchr.io
+      run: make publish
+      env:
+        REPOSITORY: "ghcr.io/${{ github.repository }}"
+        VERSION: "${{ steps.get_version.outputs.VERSION }}"
+    - name: Draft GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        draft: true
+        files: |
+          lib/*.wasm
+          components.tar
+        fail_on_unmatched_files: true
+        token: ${{ secrets.GITHUB_TOKEN }}
