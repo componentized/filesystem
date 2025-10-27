@@ -34,7 +34,7 @@ jobs:
       run: tar -cvf ../components.tar *.wasm*
       working-directory: ./lib
     - name: Upload components.tar
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: components.tar
         path: components.tar
