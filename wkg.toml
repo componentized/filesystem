@@ -1,2 +1,1 @@
 [overrides]
-"wasi:config" = { path = "./wit/overrides/wasi-config" }
