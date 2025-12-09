@@ -24,6 +24,8 @@ jobs:
       run: cargo binstall --force cargo-component
     - name: Install wkg
       run: cargo binstall --force wkg
+    - name: Install wasm-tools
+      run: cargo binstall --force wasm-tools
     - name: Fetch wit
       run: make wit
     - name: Check for drift in generated wit
@@ -39,6 +41,14 @@ jobs:
         name: components.tar
         path: components.tar
         retention-days: 7
+    - name: Capture WIT
+      working-directory: ./lib
+      run: |
+        for component in *.wasm ; do
+          echo "::group::${component}"
+            wasm-tools component wit "${component}"
+          echo "::endgroup::"
+        done
 
   publish:
     if: startsWith(github.ref, 'refs/tags/')
