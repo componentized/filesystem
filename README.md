@@ -21,8 +21,7 @@ A collection of utility components that remix wasi:filesystem types and interfac
 ## Build
 
 Prereqs:
-- a rust toolchain with a recent nightly (`rustup toolchain install nightly`)
-- [`cargo component`](https://github.com/bytecodealliance/cargo-component)
+- a rust toolchain
 - [`wkg`](https://github.com/bytecodealliance/wasm-pkg-tools)
 
 ```sh

@@ -1,4 +1,4 @@
-package wasi:filesystem@0.2.3;
+package wasi:filesystem@0.2.6;
 
 /// WASI filesystem is a filesystem API primarily intended to let users run WASI
 /// programs that access their files on their existing filesystems, without
@@ -27,9 +27,9 @@ package wasi:filesystem@0.2.3;
 @since(version = 0.2.0)
 interface types {
   @since(version = 0.2.0)
-  use wasi:io/streams@0.2.3.{input-stream, output-stream, error};
+  use wasi:io/streams@0.2.6.{input-stream, output-stream, error};
   @since(version = 0.2.0)
-  use wasi:clocks/wall-clock@0.2.3.{datetime};
+  use wasi:clocks/wall-clock@0.2.6.{datetime};
 
   /// File size or length of a region within a file.
   @since(version = 0.2.0)
@@ -446,6 +446,10 @@ interface types {
     set-times-at: func(path-flags: path-flags, path: string, data-access-timestamp: new-timestamp, data-modification-timestamp: new-timestamp) -> result<_, error-code>;
     /// Create a hard link.
     ///
+    /// Fails with `error-code::no-entry` if the old path does not exist,
+    /// with `error-code::exist` if the new path already exists, and
+    /// `error-code::not-permitted` if the old path is not a file.
+    ///
     /// Note: This is similar to `linkat` in POSIX.
     @since(version = 0.2.0)
     link-at: func(old-path-flags: path-flags, old-path: string, new-descriptor: borrow<descriptor>, new-path: string) -> result<_, error-code>;
@@ -516,12 +520,12 @@ interface types {
     ///
     /// Implementations are encouraged to provide the following properties:
     ///
-    /// - If the file is not modified or replaced, the computed hash value should
-    /// usually not change.
-    /// - If the object is modified or replaced, the computed hash value should
-    /// usually change.
-    /// - The inputs to the hash should not be easily computable from the
-    /// computed hash.
+    ///  - If the file is not modified or replaced, the computed hash value should
+    ///    usually not change.
+    ///  - If the object is modified or replaced, the computed hash value should
+    ///    usually change.
+    ///  - The inputs to the hash should not be easily computable from the
+    ///    computed hash.
     ///
     /// However, none of these is required.
     @since(version = 0.2.0)
@@ -569,13 +573,13 @@ interface preopens {
 @since(version = 0.2.0)
 world imports {
   @since(version = 0.2.0)
-  import wasi:io/error@0.2.3;
+  import wasi:io/error@0.2.6;
   @since(version = 0.2.0)
-  import wasi:io/poll@0.2.3;
+  import wasi:io/poll@0.2.6;
   @since(version = 0.2.0)
-  import wasi:io/streams@0.2.3;
+  import wasi:io/streams@0.2.6;
   @since(version = 0.2.0)
-  import wasi:clocks/wall-clock@0.2.3;
+  import wasi:clocks/wall-clock@0.2.6;
   @since(version = 0.2.0)
   import types;
   @since(version = 0.2.0)
