@@ -20,8 +20,8 @@ components: $(foreach component,$(COMPONENTS),lib/$(component).wasm $(foreach co
 define BUILD_COMPONENT
 
 lib/$1.wasm: Cargo.toml Cargo.lock wit/deps $(shell find components/$1 -type f)
-	cargo component build -p $1 --target wasm32-wasip2 --release
-	cp target/wasm32-wasip2/release/$(subst -,_,$1).wasm lib/$1.wasm
+	cargo component build -p $1 --target wasm32-unknown-unknown --release
+	cp target/wasm32-unknown-unknown/release/$(subst -,_,$1).wasm lib/$1.wasm
 	cp components/$1/README.md lib/$1.wasm.md
 
 lib/$1.debug.wasm: Cargo.toml Cargo.lock wit/deps $(shell find components/$1 -type f)
