@@ -18,6 +18,8 @@ jobs:
       uses: cargo-bins/cargo-binstall@main
     - name: Install wkg
       run: cargo binstall --force wkg
+    - name: Install cargo-component
+      run: cargo binstall --force cargo-component
     - name: Install wasm-tools
       run: cargo binstall --force wasm-tools
     - name: Fetch wit
