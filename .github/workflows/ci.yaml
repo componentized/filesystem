@@ -32,7 +32,7 @@ jobs:
       run: tar -cvf ../components.tar *.wasm*
       working-directory: ./lib
     - name: Upload components.tar
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: components.tar
         path: components.tar
