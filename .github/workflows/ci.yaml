@@ -65,7 +65,7 @@ jobs:
       id: get_version
       run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
     - name: Download components.tar
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         name: components.tar
     - name: Extract components
