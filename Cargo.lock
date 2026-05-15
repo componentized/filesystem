@@ -517,6 +517,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
+name = "filesystem-latch-n"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -636,6 +643,15 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+]
+
+[[package]]
+name = "gate"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "heck",
+ "wit-bindgen",
 ]
 
 [[package]]
@@ -934,6 +950,55 @@ dependencies = [
  "cfg-if",
  "futures-util",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "latch-defer-all"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
+name = "latch-deny-all"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
+name = "latch-n2"
+version = "0.1.0"
+dependencies = [
+ "filesystem-latch-n",
+]
+
+[[package]]
+name = "latch-n3"
+version = "0.1.0"
+dependencies = [
+ "filesystem-latch-n",
+]
+
+[[package]]
+name = "latch-n4"
+version = "0.1.0"
+dependencies = [
+ "filesystem-latch-n",
+]
+
+[[package]]
+name = "latch-n5"
+version = "0.1.0"
+dependencies = [
+ "filesystem-latch-n",
+]
+
+[[package]]
+name = "latch-readonly"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen",
 ]
 
 [[package]]

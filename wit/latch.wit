@@ -1,0 +1,189 @@
+
+interface latch {
+    use wasi:filesystem/types@0.3.0.{advice, descriptor, descriptor-flags, directory-entry, error-code as filesystem-error-code, filesize, open-flags, new-timestamp, path-flags};
+
+    record descriptor-get-directory-args {
+        path: string,
+    }
+
+    record descriptor-read-via-stream-args {
+        offset: filesize,
+    }
+
+    record descriptor-write-via-stream-args {
+        offset: filesize,
+    }
+
+    record descriptor-advise-args {
+        offset: filesize,
+        length: filesize,
+        advice: advice,
+    }
+
+    record descriptor-set-size-args {
+        size: filesize,
+    }
+
+    record descriptor-set-times-args {
+        data-access-timestamp: new-timestamp,
+        data-modification-timestamp: new-timestamp,
+    }
+
+    record descriptor-read-args {
+        length: filesize,
+        offset: filesize,
+    }
+
+    record descriptor-write-args {
+        buffer-length: u64,
+        offset: filesize,
+    }
+
+    record descriptor-create-directory-at-args {
+        path: string,
+    }
+
+    record descriptor-stat-at-args {
+        path-flags: path-flags,
+        path: string,
+    }
+
+    record descriptor-set-times-at-args {
+        path-flags: path-flags,
+        path: string,
+        data-access-timestamp: new-timestamp,
+        data-modification-timestamp: new-timestamp,
+    }
+
+    record descriptor-link-at-args {
+        old-path-flags: path-flags,
+        old-path: string,
+        new-descriptor: borrow<descriptor>,
+        new-path: string,
+    }
+
+    record descriptor-open-at-args {
+        path-flags: path-flags,
+        path: string,
+        open-flags: open-flags,
+        %flags: descriptor-flags,
+    }
+
+    record descriptor-readlink-at-args {
+        path: string,
+    }
+
+    record descriptor-remove-directory-at-args {
+        path: string,
+    }
+
+    record descriptor-rename-at-args {
+        old-path: string,
+        new-descriptor: borrow<descriptor>,
+        new-path: string,
+    }
+
+    record descriptor-symlink-at-args {
+        old-path: string,
+        new-path: string,
+    }
+
+    record descriptor-unlink-file-at-args {
+        path: string,
+    }
+
+
+    record descriptor-metadata-hash-at-args {
+        path-flags: path-flags,
+        path: string,
+    }
+
+    variant preopens-operation {
+        get-directories,
+        get-directories-item(tuple<borrow<descriptor>, string>),
+    }
+
+    variant descriptor-operation {
+        read-via-stream(tuple<borrow<descriptor>, descriptor-read-via-stream-args>),
+        write-via-stream(tuple<borrow<descriptor>, descriptor-write-via-stream-args>),
+        append-via-stream(tuple<borrow<descriptor>>),
+        advise(tuple<borrow<descriptor>, descriptor-advise-args>),
+        sync-data(tuple<borrow<descriptor>>),
+        get-flags(tuple<borrow<descriptor>>),
+        get-type(tuple<borrow<descriptor>>),
+        set-size(tuple<borrow<descriptor>, descriptor-set-size-args>),
+        set-times(tuple<borrow<descriptor>, descriptor-set-times-args>),
+        read-directory(tuple<borrow<descriptor>>),
+        read-directory-entry(tuple<borrow<descriptor>, directory-entry>),
+        sync(tuple<borrow<descriptor>>),
+        create-directory-at(tuple<borrow<descriptor>, descriptor-create-directory-at-args>),
+        stat(tuple<borrow<descriptor>>),
+        stat-at(tuple<borrow<descriptor>, descriptor-stat-at-args>),
+        set-times-at(tuple<borrow<descriptor>, descriptor-set-times-at-args>),
+        link-at(tuple<borrow<descriptor>, descriptor-link-at-args>),
+        open-at(tuple<borrow<descriptor>, descriptor-open-at-args>),
+        readlink-at(tuple<borrow<descriptor>, descriptor-readlink-at-args>),
+        remove-directory-at(tuple<borrow<descriptor>, descriptor-remove-directory-at-args>),
+        rename-at(tuple<borrow<descriptor>, descriptor-rename-at-args>),
+        symlink-at(tuple<borrow<descriptor>, descriptor-symlink-at-args>),
+        unlink-file-at(tuple<borrow<descriptor>, descriptor-unlink-file-at-args>),
+        metadata-hash(tuple<borrow<descriptor>>),
+        metadata-hash-at(tuple<borrow<descriptor>, descriptor-metadata-hash-at-args>),
+    }
+
+    /// Operations for the wasi:sockets package.
+    @since(version = 0.3.0-dev)
+    variant operation {
+        preopens(preopens-operation),
+        descriptor(descriptor-operation),
+    }
+
+    /// Whether the operation is allowed to proceed.
+    @since(version = 0.3.0-dev)
+    variant decision {
+        /// No objection to the operation.
+        deferred,
+        /// The operation must not proceed. The error code is returned to the caller for
+        /// operations that fail. For traffic that is dropped instead, like an accepted connection
+        /// or a received datagram, it is only logged.
+        denied(filesystem-error-code),
+    }
+
+    /// The name of a latch component, identifying which latch reported an error.
+    @since(version = 0.3.0-dev)
+    type latch-name = string;
+
+    /// A latch was unable to decide or observe. The gate fails the operation, except for an
+    /// accepted connection, which is closed as if it were denied.
+    @since(version = 0.1.0)
+    variant error-code {
+        /// The latch's configuration is invalid, the cause is logged by the latch.
+        invalid-config(latch-name),
+        /// The latch was unable to act on the final decision.
+        observation-failed(latch-name),
+        /// Any other error.
+        other(option<string>),
+    }
+
+    /// Decide whether the operation may proceed.
+    ///
+    /// Must not have side effects. When latches are aggregated, a latch is not asked about an
+    /// operation another latch already denied, so state changed here could disagree with what
+    /// actually happened. Act on decisions in `observe-decision` instead.
+    @since(version = 0.3.0-dev)
+    authorize: func(operation: operation) -> result<decision, error-code>;
+
+    /// Observe the final decision for an operation, after `authorize` returned a decision.
+    ///
+    /// Called for both deferred and denied operations, including operations this latch was not
+    /// asked to authorize because an aggregated latch denied them first. The final decision is
+    /// what the gate enforces, so this is where a latch updates any state it keeps, for example
+    /// remembering peers the caller is allowed to exchange traffic with. Not called when
+    /// `authorize` returned an error.
+    ///
+    /// An error fails the operation, since the latch could not act on the decision.
+    @since(version = 0.3.0-dev)
+    observe-decision: func(final-decision: decision, operation: operation) -> result<_, error-code>;
+}
+
+
