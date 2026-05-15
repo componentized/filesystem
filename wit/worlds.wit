@@ -1,10 +1,36 @@
 package componentized:filesystem;
 
 world filesystem {
+    import latch;
     import wasi:config/store@0.2.0-rc.1;
     import wasi:logging/logging@0.1.0-draft;
     import wasi:filesystem/preopens@0.3.0;
     export wasi:filesystem/preopens@0.3.0;
     import wasi:filesystem/types@0.3.0;
     export wasi:filesystem/types@0.3.0;
+}
+
+world filesystem-latch {
+    export latch;
+}
+
+world filesystem-latch2 {
+    import latch1;
+    import latch2;
+    export latch;
+}
+
+world filesystem-latch3 {
+    import latch1;
+    import latch2;
+    import latch3;
+    export latch;
+}
+
+world filesystem-latch4 {
+    import latch1;
+    import latch2;
+    import latch3;
+    import latch4;
+    export latch;
 }
