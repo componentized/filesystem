@@ -9,7 +9,7 @@ use crate::bindings::{
         DescriptorRemoveDirectoryAtArgs, DescriptorRenameAtArgs, DescriptorSetSizeArgs,
         DescriptorSetTimesArgs, DescriptorSetTimesAtArgs, DescriptorStatAtArgs,
         DescriptorSymlinkAtArgs, DescriptorUnlinkFileAtArgs, DescriptorWriteArgs,
-        DescriptorWriteViaStreamArgs, Operation,
+        DescriptorWriteViaStreamArgs, DirectoryEntryStreamOperation, Operation, PreopensOperation,
     },
 };
 
@@ -30,9 +30,27 @@ pub fn check(
 
 fn operation_map(operation: Operation) -> latch::Operation {
     match operation {
+        Operation::Preopens(preopens_operation) => {
+            latch::Operation::Preopens(preopens_operation_map(preopens_operation))
+        }
         Operation::Descriptor((descriptor, descriptor_operation)) => latch::Operation::Descriptor(
             (descriptor, descriptor_operation_map(descriptor_operation)),
         ),
+        Operation::DirectoryEntryStream((
+            directory_entry_stream,
+            directory_entry_stream_operation,
+        )) => latch::Operation::DirectoryEntryStream((
+            directory_entry_stream,
+            directory_entry_stream_operation_map(directory_entry_stream_operation),
+        )),
+    }
+}
+
+fn preopens_operation_map(preopens_operation: PreopensOperation) -> latch::PreopensOperation {
+    match preopens_operation {
+        PreopensOperation::GetDirectoriesItem((fd, path)) => {
+            latch::PreopensOperation::GetDirectoriesItem((fd, path))
+        }
     }
 }
 
@@ -259,6 +277,16 @@ fn descriptor_metadata_hash_at_args_map(
     latch::DescriptorMetadataHashAtArgs {
         path: args.path,
         path_flags: args.path_flags,
+    }
+}
+
+fn directory_entry_stream_operation_map(
+    directory_entry_stream_operation: DirectoryEntryStreamOperation,
+) -> latch::DirectoryEntryStreamOperation {
+    match directory_entry_stream_operation {
+        DirectoryEntryStreamOperation::ReadDirectoryEntry(directory_entry) => {
+            latch::DirectoryEntryStreamOperation::ReadDirectoryEntry(directory_entry)
+        }
     }
 }
 

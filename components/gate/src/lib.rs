@@ -1,9 +1,13 @@
 #![no_main]
 
+use std::fmt::Display;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use crate::componentized::filesystem::latch::Decision::{Abstain, Allow, Deny};
-use crate::componentized::filesystem::latch::{self, check, DescriptorOperation, Operation};
+use crate::componentized::filesystem::latch::{
+    self, check, DescriptorOperation, DirectoryEntryStreamOperation, Operation, PreopensOperation,
+};
 use crate::exports::wasi::filesystem::preopens::Guest as Preopens;
 use crate::exports::wasi::filesystem::types::{
     Advice, Descriptor, DescriptorBorrow, DescriptorFlags, DescriptorStat, DescriptorType,
@@ -14,7 +18,6 @@ use crate::wasi::filesystem::preopens;
 use crate::wasi::filesystem::types;
 use crate::wasi::logging::logging::{log, Level};
 
-#[macro_export]
 macro_rules! warn {
     ($dst:expr, $($arg:tt)*) => {
         log(Level::Warn, "componentized-gate", &format!($dst, $($arg)*));
@@ -24,25 +27,44 @@ macro_rules! warn {
     };
 }
 
-#[derive(Debug, Clone)]
-struct FilesystemGate {}
+macro_rules! trace {
+    ($dst:expr, $($arg:tt)*) => {
+        log(Level::Trace, "componentized-gate", &format!($dst, $($arg)*));
+    };
+    ($dst:expr) => {
+        log(Level::Trace, "componentized-gate", &format!($dst));
+    };
+}
 
-impl Preopens for FilesystemGate {
+#[derive(Debug, Clone)]
+struct GatedFilesystem {}
+
+impl Preopens for GatedFilesystem {
     #[doc = " Return the set of preopened directories, and their path."]
     fn get_directories() -> Vec<(Descriptor, String)> {
         preopens::get_directories()
             .into_iter()
+            .filter(|(fs, path)| {
+                match check(&Operation::Preopens(PreopensOperation::GetDirectoriesItem((fs, path.clone())))) {
+                    Allow => true,
+                    Deny(code) => {
+                        trace!("Denied REASON={code} OPERATION=wasi:filesystem/preopens#get-directories PATH={path}");
+                        false
+                    }
+                    Abstain => panic!("missing latch decision"),
+                }
+            })
             .map(|(fd, path)| {
-                let fd = Descriptor::new(GateDescriptor::new(fd));
+                let fd = Descriptor::new(GatedFileDescriptor::new(fd, PathBuf::from(path.clone())));
                 (fd, path)
             })
             .collect()
     }
 }
 
-impl Types for FilesystemGate {
-    type Descriptor = GateDescriptor;
-    type DirectoryEntryStream = GateDirectoryEntryStream;
+impl Types for GatedFilesystem {
+    type Descriptor = GatedFileDescriptor;
+    type DirectoryEntryStream = GatedDirectoryEntryStream;
 
     #[doc = " Attempts to extract a filesystem-related `error-code` from the stream"]
     #[doc = " `error` provided."]
@@ -60,17 +82,27 @@ impl Types for FilesystemGate {
 }
 
 #[derive(Debug, Clone)]
-struct GateDescriptor {
+struct GatedFileDescriptor {
     fd: Rc<types::Descriptor>,
+    path: PathBuf,
 }
 
-impl GateDescriptor {
-    fn new(fd: types::Descriptor) -> Self {
-        Self { fd: Rc::new(fd) }
+impl GatedFileDescriptor {
+    fn new(fd: types::Descriptor, path: PathBuf) -> Self {
+        Self {
+            fd: Rc::new(fd),
+            path,
+        }
     }
 }
 
-impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
+impl Display for GatedFileDescriptor {
+    fn fmt(&self, d: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        d.write_fmt(format_args!("{}", self.path.display()))
+    }
+}
+
+impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     #[doc = " Return a stream for reading from a file, if available."]
     #[doc = ""]
     #[doc = " May fail with an error-code describing why the file cannot be read."]
@@ -86,7 +118,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
         ))) {
             Allow => self.fd.read_via_stream(offset).map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.read-via-stream FD={self:?} OFFSET={offset}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.read-via-stream FD={self} OFFSET={offset}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -106,7 +138,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
         ))) {
             Allow => self.fd.write_via_stream(offset).map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.write-via-stream FD={self:?} OFFSET={offset}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.write-via-stream FD={self} OFFSET={offset}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -126,7 +158,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
         ))) {
             Allow => self.fd.append_via_stream().map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.append-via-stream FD={self:?}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.append-via-stream FD={self}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -152,7 +184,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
                 .advise(offset, length, advice)
                 .map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.advise FD={self:?}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.advise FD={self}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -172,7 +204,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
         ))) {
             Allow => self.fd.sync_data().map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.sync-data FD={self:?}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.sync-data FD={self}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -196,7 +228,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
                 .map(descriptor_flags_map)
                 .map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.get-flags FD={self:?}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.get-flags FD={self}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -224,7 +256,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
                 .map(descriptor_type_map)
                 .map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.get-type FD={self:?}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.get-type FD={self}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -242,7 +274,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
         ))) {
             Allow => self.fd.set_size(size).map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.set-size FD={self:?} SIZE={size}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.set-size FD={self} SIZE={size}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -274,7 +306,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
                 .set_times(data_access_timestamp, data_modification_timestamp)
                 .map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.set-times FD={self:?} ACCESS-TIME={data_access_timestamp:?} MODIFIED-TIME={data_modification_timestamp:?}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.set-times FD={self} ACCESS-TIME={data_access_timestamp:?} MODIFIED-TIME={data_modification_timestamp:?}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -299,7 +331,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
         ))) {
             Allow => self.fd.read(length, offset).map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.read FD={self:?} LENGTH={length} OFFSET={offset}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.read FD={self} LENGTH={length} OFFSET={offset}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -329,7 +361,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
         ))) {
             Allow => self.fd.write(&buffer, offset).map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.write FD={self:?} BUFFER-LENGTH={buffer_length} OFFSET={offset}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.write FD={self} BUFFER-LENGTH={buffer_length} OFFSET={offset}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -353,10 +385,10 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
             Allow => self
                 .fd
                 .read_directory()
-                .map(directory_entry_stream_map)
+                .map(|des| directory_entry_stream_map(des, self.path.clone()))
                 .map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.read-directory FD={self:?}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.read-directory FD={self}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -376,7 +408,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
         ))) {
             Allow => self.fd.sync().map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.sync FD={self:?}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.sync FD={self}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -395,7 +427,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
         ))) {
             Allow => self.fd.create_directory_at(&path).map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.create-directory-at FD={self:?} PATH={path}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.create-directory-at FD={self} PATH={path}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -422,7 +454,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
                 .map(descriptor_stat_map)
                 .map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.stat FD={self:?}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.stat FD={self}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -452,7 +484,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
                 .map(descriptor_stat_map)
                 .map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.stat-at FD={self:?} PATH={path}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.stat-at FD={self} PATH={path}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -494,7 +526,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
                 )
                 .map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.set-times-at FD={self:?} PATH={path} ACCESS-TIME={data_access_timestamp:?} MODIFIED-TIME={data_modification_timestamp:?}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.set-times-at FD={self} PATH={path} ACCESS-TIME={data_access_timestamp:?} MODIFIED-TIME={data_modification_timestamp:?}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -532,7 +564,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
                 .map_err(error_code_map),
             Deny(code) => {
                 warn!(
-                    "Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.link-at FD={self:?} OLD-PATH={old_path} NEW-PATH={new_path}",
+                    "Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.link-at FD={self} OLD-PATH={old_path} NEW-PATH={new_path}",
                 );
                 Err(error_code_map(code))
             }
@@ -579,11 +611,11 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
         ))) {
             Allow => self
                 .fd
-                .open_at(path_flags, &path, open_flags, flags)
-                .map(descriptor_map)
+                .open_at(path_flags, &path.clone(), open_flags, flags)
+                .map(|descriptor| descriptor_map(descriptor, self.path.join(path)))
                 .map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.open-at FD={self:?} PATH={path}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.open-at FD={self} PATH={path}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -604,7 +636,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
             Allow => self.fd.readlink_at(&path).map_err(error_code_map),
             Deny(code) => {
                 warn!(
-                    "Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.readlink-at FD={self:?} PATH={path}",
+                    "Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.readlink-at FD={self} PATH={path}",
                 );
                 Err(error_code_map(code))
             }
@@ -626,7 +658,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
         ))) {
             Allow => self.fd.remove_directory_at(&path).map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.remove-directory-at FD={self:?} PATH={path}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.remove-directory-at FD={self} PATH={path}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -658,7 +690,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
             }
             Deny(code) => {
                 warn!(
-                    "Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.rename-at FD={self:?} OLD-PATH={old_path} NEW-PATH={new_path}",
+                    "Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.rename-at FD={self} OLD-PATH={old_path} NEW-PATH={new_path}",
                 );
                 Err(error_code_map(code))
             }
@@ -686,7 +718,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
                 .map_err(error_code_map),
             Deny(code) => {
                 warn!(
-                    "Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.symlink-at FD={self:?} OLD-PATH={old_path} NEW-PATH={new_path}",
+                    "Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.symlink-at FD={self} OLD-PATH={old_path} NEW-PATH={new_path}",
                 );
                 Err(error_code_map(code))
             }
@@ -708,7 +740,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
             Allow => self.fd.unlink_file_at(&path).map_err(error_code_map),
             Deny(code) => {
                 warn!(
-                    "Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.unlink-file-at FD={self:?} PATH={path}",
+                    "Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.unlink-file-at FD={self} PATH={path}",
                 );
                 Err(error_code_map(code))
             }
@@ -757,7 +789,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
                 .map(metadata_hash_value_map)
                 .map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.metadata-hash FD={self:?}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.metadata-hash FD={self}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -787,7 +819,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
                 .map(metadata_hash_value_map)
                 .map_err(error_code_map),
             Deny(code) => {
-                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.metadata-hash-at FD={self:?} PATH={path}");
+                warn!("Denied REASON={code} OPERATION=wasi:filesystem/types#descriptor.metadata-hash-at FD={self} PATH={path}");
                 Err(error_code_map(code))
             }
             Abstain => panic!("missing latch decision"),
@@ -796,23 +828,47 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GateDescriptor {
 }
 
 #[derive(Debug, Clone)]
-struct GateDirectoryEntryStream {
+struct GatedDirectoryEntryStream {
     des: Rc<types::DirectoryEntryStream>,
+    path: PathBuf,
 }
 
-impl GateDirectoryEntryStream {
-    fn new(des: types::DirectoryEntryStream) -> Self {
-        Self { des: Rc::new(des) }
+impl GatedDirectoryEntryStream {
+    fn new(des: types::DirectoryEntryStream, path: PathBuf) -> Self {
+        Self {
+            des: Rc::new(des),
+            path,
+        }
     }
 }
 
-impl exports::wasi::filesystem::types::GuestDirectoryEntryStream for GateDirectoryEntryStream {
+impl Display for GatedDirectoryEntryStream {
+    fn fmt(&self, d: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        d.write_fmt(format_args!("{}", self.path.display()))
+    }
+}
+
+impl exports::wasi::filesystem::types::GuestDirectoryEntryStream for GatedDirectoryEntryStream {
     #[doc = " Read a single directory entry from a `directory-entry-stream`."]
     fn read_directory_entry(&self) -> Result<Option<DirectoryEntry>, ErrorCode> {
-        self.des
-            .read_directory_entry()
-            .map(|de| de.map(directory_entry_map))
-            .map_err(error_code_map)
+        match self.des.read_directory_entry() {
+            Ok(Some(de)) => {
+                match check(&Operation::DirectoryEntryStream((
+                    &self.des,
+                    DirectoryEntryStreamOperation::ReadDirectoryEntry(de.clone()),
+                ))) {
+                    Allow => Ok(Some(directory_entry_map(de))),
+                    Deny(code) => {
+                        trace!("Denied REASON={code} OPERATION=wasi:filesystem/types#directory-entry-stream.read-directory-entry STREAM={} ENTRY={}", self, de.name);
+                        // continue reading the next entry transparently
+                        self.read_directory_entry()
+                    }
+                    Abstain => panic!("missing latch decision"),
+                }
+            }
+            Ok(None) => Ok(None),
+            Err(code) => Err(error_code_map(code)),
+        }
     }
 }
 
@@ -827,8 +883,8 @@ fn advice_map_in(advice: Advice) -> types::Advice {
     }
 }
 
-fn descriptor_map(descriptor: types::Descriptor) -> Descriptor {
-    Descriptor::new(GateDescriptor::new(descriptor))
+fn descriptor_map(descriptor: types::Descriptor, path: PathBuf) -> Descriptor {
+    Descriptor::new(GatedFileDescriptor::new(descriptor, path))
 }
 
 fn descriptor_flags_map(descriptor_flags: types::DescriptorFlags) -> DescriptorFlags {
@@ -868,8 +924,9 @@ fn directory_entry_map(directory_entry: types::DirectoryEntry) -> DirectoryEntry
 
 fn directory_entry_stream_map(
     directory_entry_stream: types::DirectoryEntryStream,
+    path: PathBuf,
 ) -> DirectoryEntryStream {
-    DirectoryEntryStream::new(GateDirectoryEntryStream::new(directory_entry_stream))
+    DirectoryEntryStream::new(GatedDirectoryEntryStream::new(directory_entry_stream, path))
 }
 
 fn error_code_map(error_code: types::ErrorCode) -> ErrorCode {
@@ -935,4 +992,4 @@ wit_bindgen::generate!({
     generate_all
 });
 
-export!(FilesystemGate);
+export!(GatedFilesystem);

@@ -13,6 +13,7 @@ struct ReadOnlyLatch {}
 impl Latch for ReadOnlyLatch {
     fn check(operation: Operation) -> Decision {
         match operation {
+            Operation::Preopens(_) => Abstain,
             Operation::Descriptor((_, descriptor_operation)) => match descriptor_operation {
                 DescriptorOperation::ReadViaStream(_) => Abstain,
                 DescriptorOperation::WriteViaStream(_) => Deny(ReadOnly),
@@ -58,6 +59,7 @@ impl Latch for ReadOnlyLatch {
                 DescriptorOperation::MetadataHash => Abstain,
                 DescriptorOperation::MetadataHashAt(_) => Abstain,
             },
+            Operation::DirectoryEntryStream(_) => Abstain,
         }
     }
 }
