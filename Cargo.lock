@@ -223,7 +223,6 @@ name = "latch-n2"
 version = "0.1.0"
 dependencies = [
  "latch-n",
- "wit-bindgen",
 ]
 
 [[package]]
@@ -231,7 +230,6 @@ name = "latch-n3"
 version = "0.1.0"
 dependencies = [
  "latch-n",
- "wit-bindgen",
 ]
 
 [[package]]
@@ -239,7 +237,6 @@ name = "latch-n4"
 version = "0.1.0"
 dependencies = [
  "latch-n",
- "wit-bindgen",
 ]
 
 [[package]]
@@ -247,7 +244,6 @@ name = "latch-n5"
 version = "0.1.0"
 dependencies = [
  "latch-n",
- "wit-bindgen",
 ]
 
 [[package]]

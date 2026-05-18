@@ -9,4 +9,3 @@ crate-type = ["cdylib"]
 
 [dependencies]
 latch-n = { workspace = true }
-wit-bindgen = { workspace = true }
