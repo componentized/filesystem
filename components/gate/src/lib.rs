@@ -56,6 +56,15 @@ macro_rules! trace {
     };
 }
 
+macro_rules! trace {
+    ($dst:expr, $($arg:tt)*) => {
+        log(Level::Trace, "componentized-gate", &format!($dst, $($arg)*));
+    };
+    ($dst:expr) => {
+        log(Level::Trace, "componentized-gate", &format!($dst));
+    };
+}
+
 /// Authorize the operation with the latch, then report the decision back to the latch. Latches
 /// act on the final decision in `observe-decision`, never while authorizing. Failing to observe
 /// the decision fails the operation, the same as a latch error.
