@@ -1,5 +1,5 @@
-use filesystem_latch_n::{latch0, latch1};
 use filesystem_latch_n::{Decision, ErrorCode, Latch, Operation};
+use filesystem_latch_n::{latch0, latch1};
 
 struct LatchN2 {}
 

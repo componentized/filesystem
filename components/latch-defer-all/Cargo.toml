@@ -8,4 +8,5 @@ license = "Apache-2.0"
 crate-type = ["cdylib"]
 
 [dependencies]
+filesystem-latch-n = { workspace = true }
 wit-bindgen = { workspace = true }

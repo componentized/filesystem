@@ -1,6 +1,5 @@
-use crate::{
-    exports::componentized::filesystem::latch::{Decision, Guest as Latch, Operation},
-    wasi::filesystem::types::ErrorCode,
+use crate::exports::componentized::filesystem::latch::{
+    Decision, ErrorCode, FilesystemErrorCode, Guest as Latch, Operation,
 };
 
 struct LatchDenyAll {}
@@ -8,7 +7,7 @@ struct LatchDenyAll {}
 impl Latch for LatchDenyAll {
     #[allow(async_fn_in_trait)]
     fn authorize(_operation: Operation) -> Result<Decision, ErrorCode> {
-        Ok(Decision::Denied(ErrorCode::NotPermitted))
+        Ok(Decision::Denied(FilesystemErrorCode::NotPermitted))
     }
 
     #[allow(async_fn_in_trait)]

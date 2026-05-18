@@ -1,6 +1,5 @@
-use crate::{
-    exports::componentized::filesystem::latch::{Decision, Guest as Latch, Operation},
-    wasi::filesystem::types::ErrorCode,
+use crate::exports::componentized::filesystem::latch::{
+    Decision, ErrorCode, Guest as Latch, Operation,
 };
 
 struct LatchDenyAll {}
