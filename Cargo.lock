@@ -198,27 +198,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "latch-2"
-version = "0.1.0"
-dependencies = [
- "wit-bindgen",
-]
-
-[[package]]
-name = "latch-3"
-version = "0.1.0"
-dependencies = [
- "wit-bindgen",
-]
-
-[[package]]
-name = "latch-4"
-version = "0.1.0"
-dependencies = [
- "wit-bindgen",
-]
-
-[[package]]
 name = "latch-allow"
 version = "0.1.0"
 dependencies = [
@@ -229,6 +208,45 @@ dependencies = [
 name = "latch-deny"
 version = "0.1.0"
 dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
+name = "latch-n"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
+name = "latch-n2"
+version = "0.1.0"
+dependencies = [
+ "latch-n",
+ "wit-bindgen",
+]
+
+[[package]]
+name = "latch-n3"
+version = "0.1.0"
+dependencies = [
+ "latch-n",
+ "wit-bindgen",
+]
+
+[[package]]
+name = "latch-n4"
+version = "0.1.0"
+dependencies = [
+ "latch-n",
+ "wit-bindgen",
+]
+
+[[package]]
+name = "latch-n5"
+version = "0.1.0"
+dependencies = [
+ "latch-n",
  "wit-bindgen",
 ]
 

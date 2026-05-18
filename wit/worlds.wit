@@ -14,23 +14,12 @@ world filesystem-latch {
     export latch;
 }
 
-world filesystem-latch2 {
-    import latch1;
-    import latch2;
+world filesystem-latch-n {
     export latch;
-}
-
-world filesystem-latch3 {
-    import latch1;
-    import latch2;
-    import latch3;
-    export latch;
-}
-
-world filesystem-latch4 {
     import latch1;
     import latch2;
     import latch3;
     import latch4;
-    export latch;
+    import wasi:filesystem/preopens@0.2.6;
+    import wasi:filesystem/types@0.2.6;
 }

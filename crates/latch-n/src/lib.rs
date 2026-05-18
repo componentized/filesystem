@@ -1,7 +1,7 @@
 #![no_main]
 
-use crate::{
-    componentized::filesystem::{latch, latch1, latch2, latch3, latch4},
+use crate::bindings::{
+    componentized::filesystem::latch,
     exports::componentized::filesystem::latch::{
         Decision, DescriptorAdviseArgs, DescriptorCreateDirectoryAtArgs, DescriptorLinkAtArgs,
         DescriptorMetadataHashAtArgs, DescriptorOpenAtArgs, DescriptorOperation,
@@ -9,25 +9,23 @@ use crate::{
         DescriptorRemoveDirectoryAtArgs, DescriptorRenameAtArgs, DescriptorSetSizeArgs,
         DescriptorSetTimesArgs, DescriptorSetTimesAtArgs, DescriptorStatAtArgs,
         DescriptorSymlinkAtArgs, DescriptorUnlinkFileAtArgs, DescriptorWriteArgs,
-        DescriptorWriteViaStreamArgs, Guest as Latch, Operation,
+        DescriptorWriteViaStreamArgs, Operation,
     },
 };
 
-struct AggregateLatch {}
-
-impl Latch for AggregateLatch {
-    fn check(operation: Operation) -> Decision {
-        let operation = operation_map(operation);
-        let checks = vec![latch1::check, latch2::check, latch3::check, latch4::check];
-        for check in checks {
-            match check(&operation) {
-                latch::Decision::Abstain => {}
-                latch::Decision::Allow => return Decision::Allow,
-                latch::Decision::Deny(error_code) => return Decision::Deny(error_code),
-            }
+pub fn check(
+    operation: Operation,
+    checks: Vec<fn(&latch::Operation<'_>) -> latch::Decision>,
+) -> Decision {
+    let operation = operation_map(operation);
+    for check in checks {
+        match check(&operation) {
+            latch::Decision::Abstain => {}
+            latch::Decision::Allow => return Decision::Allow,
+            latch::Decision::Deny(error_code) => return Decision::Deny(error_code),
         }
-        Decision::Abstain
     }
+    Decision::Abstain
 }
 
 fn operation_map(operation: Operation) -> latch::Operation {
@@ -264,10 +262,18 @@ fn descriptor_metadata_hash_at_args_map(
     }
 }
 
-wit_bindgen::generate!({
-    path: "../../wit",
-    world: "filesystem-latch4",
-    generate_all
-});
+pub mod bindings {
+    wit_bindgen::generate!({
+        path: "../../wit",
+        world: "filesystem-latch-n",
+        pub_export_macro: true,
+        generate_all
+    });
+}
 
-export!(AggregateLatch);
+#[macro_export]
+macro_rules! export {
+    ($($t:tt)*) => {
+        $crate::bindings::export!($($t)*);
+    };
+}

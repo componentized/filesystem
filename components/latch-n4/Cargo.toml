@@ -1,5 +1,5 @@
 [package]
-name = "latch-2"
+name = "latch-n4"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
@@ -8,4 +8,5 @@ license = "Apache-2.0"
 crate-type = ["cdylib"]
 
 [dependencies]
+latch-n = { workspace = true }
 wit-bindgen = { workspace = true }
