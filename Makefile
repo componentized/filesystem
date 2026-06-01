@@ -4,7 +4,7 @@ export RUST_BACKTRACE ?= 1
 export WASMTIME_BACKTRACE_DETAILS ?= 1
 
 COMPONENTS = $(shell ls -1 components)
-TEST_COMPONENTS = $(shell ls -1 tests | grep -v '\.wac')
+TEST_COMPONENTS = $(shell ls -1 tests)
 
 .PHONY: all
 all: components
@@ -82,13 +82,10 @@ lib/tests/filesystem-cli-deny.wasm: lib/tests/filesystem-cli.wasm lib/tests/deny
 		) \
 		-o lib/tests/filesystem-cli-deny.wasm
 
-lib/tests/readonly.wasm: tests/readonly.wac lib/gate.wasm lib/latch-n2.wasm lib/latch-readonly.wasm lib/latch-permit-all.wasm
-	wac compose -o lib/tests/readonly.wasm \
-		-d componentized:gate="lib/gate.wasm" \
-		-d componentized:latch-n2="lib/latch-n2.wasm" \
-		-d componentized:latch-readonly="lib/latch-readonly.wasm" \
-		-d componentized:latch-permit="lib/latch-permit-all.wasm" \
-		tests/readonly.wac
+lib/tests/readonly.wasm: lib/gate.wasm lib/latch-n2.wasm lib/latch-readonly.wasm lib/latch-permit-all.wasm
+	wac plug lib/gate.wasm \
+		--plug lib/latch-readonly.wasm \
+		-o lib/tests/readonly.wasm
 
 lib/tests/filesystem-cli-readonly.wasm: lib/tests/filesystem-cli.wasm lib/tests/readonly.wasm lib/tests/logging-to-stdout.wasm
 	wac plug lib/tests/filesystem-cli.wasm \
