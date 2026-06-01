@@ -1133,6 +1133,42 @@ impl Display for types::Instant {
     }
 }
 
+impl Display for types::Advice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.to_string().to_kebab_case())
+    }
+}
+
+impl Display for types::DescriptorFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let names: Vec<String> = self
+            .iter_names()
+            .map(|(name, _flags)| name.to_kebab_case())
+            .collect();
+        f.write_fmt(format_args!("({})", &names.join("|")))
+    }
+}
+
+impl Display for types::OpenFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let names: Vec<String> = self
+            .iter_names()
+            .map(|(name, _flags)| name.to_kebab_case())
+            .collect();
+        f.write_fmt(format_args!("({})", &names.join("|")))
+    }
+}
+
+impl Display for types::PathFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let names: Vec<String> = self
+            .iter_names()
+            .map(|(name, _flags)| name.to_kebab_case())
+            .collect();
+        f.write_fmt(format_args!("({})", &names.join("|")))
+    }
+}
+
 wit_bindgen::generate!({
     path: "../wit",
     world: "filesystem",
