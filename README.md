@@ -30,6 +30,7 @@ A collection of utility components that remix wasi:filesystem types and interfac
 Prereqs:
 - a rust toolchain
 - [`wasm-tools`](https://github.com/bytecodealliance/wasm-tools)
+- [`wac`](https://github.com/bytecodealliance/wac)
 - [`wkg`](https://github.com/bytecodealliance/wasm-pkg-tools)
 
 ```sh
