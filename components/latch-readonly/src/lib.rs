@@ -64,7 +64,7 @@ impl Latch for ReadOnlyLatch {
                 DescriptorOperation::MetadataHash(_) => Ok(Decision::Deferred),
                 DescriptorOperation::MetadataHashAt(_) => Ok(Decision::Deferred),
             },
-            Operation::DirectoryEntryStream(_) => Abstain,
+            Operation::DirectoryEntryStream(_) => None,
         }
     }
 
