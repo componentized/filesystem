@@ -9,3 +9,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 wit-bindgen = { workspace = true }
+heck = "0.5"
