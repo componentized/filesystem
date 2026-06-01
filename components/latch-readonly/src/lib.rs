@@ -14,7 +14,7 @@ impl Latch for ReadOnlyLatch {
     fn authorize(operation: Operation) -> Option<Decision> {
         match operation {
             Operation::Preopens(_) => None,
-            Operation::Descriptor((_, descriptor_operation)) => match descriptor_operation {
+            Operation::Descriptor((_, _, descriptor_operation)) => match descriptor_operation {
                 DescriptorOperation::ReadViaStream(_) => None,
                 DescriptorOperation::WriteViaStream(_) => Some(Denied(ReadOnly)),
                 DescriptorOperation::AppendViaStream => Some(Denied(ReadOnly)),

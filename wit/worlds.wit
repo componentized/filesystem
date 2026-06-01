@@ -11,6 +11,7 @@ world filesystem {
 }
 
 world filesystem-latch {
+    import wasi:config/store@0.2.0-rc.1;
     export latch;
 }
 

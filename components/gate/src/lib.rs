@@ -117,6 +117,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn read_via_stream(&self, offset: Filesize) -> Result<InputStream, ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::ReadViaStream(latch::DescriptorReadViaStreamArgs { offset }),
         ))) {
             Some(Denied(code)) => {
@@ -137,6 +138,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn write_via_stream(&self, offset: Filesize) -> Result<OutputStream, ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::WriteViaStream(latch::DescriptorWriteViaStreamArgs { offset }),
         ))) {
             Some(Denied(code)) => {
@@ -157,6 +159,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn append_via_stream(&self) -> Result<OutputStream, ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::AppendViaStream,
         ))) {
             Some(Denied(code)) => {
@@ -176,6 +179,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
 
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::Advise(latch::DescriptorAdviseArgs {
                 offset,
                 length,
@@ -203,6 +207,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn sync_data(&self) -> Result<(), ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::SyncData,
         ))) {
             Some(Denied(code)) => {
@@ -223,6 +228,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn get_flags(&self) -> Result<DescriptorFlags, ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::GetFlags,
         ))) {
             Some(Denied(code)) => {
@@ -251,6 +257,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn get_type(&self) -> Result<DescriptorType, ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::GetType,
         ))) {
             Some(Denied(code)) => {
@@ -273,6 +280,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn set_size(&self, size: Filesize) -> Result<(), ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::SetSize(latch::DescriptorSetSizeArgs { size }),
         ))) {
             Some(Denied(code)) => {
@@ -299,6 +307,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
 
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::SetTimes(latch::DescriptorSetTimesArgs {
                 data_access_timestamp,
                 data_modification_timestamp,
@@ -330,6 +339,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn read(&self, length: Filesize, offset: Filesize) -> Result<(Vec<u8>, bool), ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::Read(latch::DescriptorReadArgs { length, offset }),
         ))) {
             Some(Denied(code)) => {
@@ -357,6 +367,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
             .expect("buffer length 64-bits or less");
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::Write(latch::DescriptorWriteArgs {
                 buffer_length,
                 offset,
@@ -383,6 +394,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn read_directory(&self) -> Result<DirectoryEntryStream, ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::ReadDirectory,
         ))) {
             Some(Denied(code)) => {
@@ -407,6 +419,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn sync(&self) -> Result<(), ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::Sync,
         ))) {
             Some(Denied(code)) => {
@@ -424,6 +437,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn create_directory_at(&self, path: String) -> Result<(), ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::CreateDirectoryAt(latch::DescriptorCreateDirectoryAtArgs {
                 path: path.clone(),
             }),
@@ -449,6 +463,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn stat(&self) -> Result<DescriptorStat, ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::Stat,
         ))) {
             Some(Denied(code)) => {
@@ -476,6 +491,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
 
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::StatAt(latch::DescriptorStatAtArgs {
                 path_flags,
                 path: path.clone(),
@@ -512,6 +528,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
         let data_modification_timestamp = new_timestamp_map_in(data_modification_timestamp);
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::SetTimesAt(latch::DescriptorSetTimesAtArgs {
                 path_flags,
                 path: path.clone(),
@@ -549,6 +566,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
         let old_path_flags = types::PathFlags::from_bits(old_path_flags.bits()).unwrap();
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::LinkAt(latch::DescriptorLinkAtArgs {
                 old_path_flags,
                 old_path: old_path.clone(),
@@ -605,6 +623,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
         let flags = types::DescriptorFlags::from_bits(flags.bits()).unwrap();
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::OpenAt(latch::DescriptorOpenAtArgs {
                 path_flags,
                 path: path.clone(),
@@ -634,6 +653,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn readlink_at(&self, path: String) -> Result<String, ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::ReadlinkAt(latch::DescriptorReadlinkAtArgs { path: path.clone() }),
         ))) {
             Some(Denied(code)) => {
@@ -655,6 +675,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn remove_directory_at(&self, path: String) -> Result<(), ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::RemoveDirectoryAt(latch::DescriptorRemoveDirectoryAtArgs {
                 path: path.clone(),
             }),
@@ -679,6 +700,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     ) -> Result<(), ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::RenameAt(latch::DescriptorRenameAtArgs {
                 old_path: old_path.clone(),
                 new_descriptor: &new_descriptor.get::<Self>().fd,
@@ -710,6 +732,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn symlink_at(&self, old_path: String, new_path: String) -> Result<(), ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::SymlinkAt(latch::DescriptorSymlinkAtArgs {
                 old_path: old_path.clone(),
                 new_path: new_path.clone(),
@@ -736,6 +759,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn unlink_file_at(&self, path: String) -> Result<(), ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::UnlinkFileAt(latch::DescriptorUnlinkFileAtArgs {
                 path: path.clone(),
             }),
@@ -784,6 +808,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     fn metadata_hash(&self) -> Result<MetadataHashValue, ErrorCode> {
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::MetadataHash,
         ))) {
             Some(Denied(code)) => {
@@ -811,6 +836,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
         let path_flags = types::PathFlags::from_bits(path_flags.bits()).unwrap();
         match authorize(&Operation::Descriptor((
             &self.fd,
+            self.path.to_string_lossy().into_owned(),
             DescriptorOperation::MetadataHashAt(latch::DescriptorMetadataHashAtArgs {
                 path_flags,
                 path: path.clone(),
@@ -858,6 +884,7 @@ impl exports::wasi::filesystem::types::GuestDirectoryEntryStream for GatedDirect
             Ok(Some(de)) => {
                 match authorize(&Operation::DirectoryEntryStream((
                     &self.des,
+                    self.path.to_string_lossy().into_owned(),
                     DirectoryEntryStreamOperation::ReadDirectoryEntry(de.clone()),
                 ))) {
                     Some(Denied(code)) => {

@@ -125,6 +125,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "glob"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
+
+[[package]]
 name = "hashbrown"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -215,6 +221,14 @@ dependencies = [
 name = "latch-deny"
 version = "0.1.0"
 dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
+name = "latch-glob"
+version = "0.1.0"
+dependencies = [
+ "path-matchers",
  "wit-bindgen",
 ]
 
@@ -313,6 +327,15 @@ name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
+
+[[package]]
+name = "path-matchers"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "36cd9b72a47679ec193a5f0229d9ab686b7bd45e1fbc59ccf953c9f3d83f7b2b"
+dependencies = [
+ "glob",
+]
 
 [[package]]
 name = "prettyplease"

@@ -137,8 +137,8 @@ interface latch {
 
     variant operation {
         preopens(preopens-operation),
-        descriptor(tuple<borrow<descriptor>, descriptor-operation>),
-        directory-entry-stream(tuple<borrow<directory-entry-stream>, directory-entry-stream-operation>),
+        descriptor(tuple<borrow<descriptor>, string, descriptor-operation>),
+        directory-entry-stream(tuple<borrow<directory-entry-stream>, string, directory-entry-stream-operation>),
     }
 
     variant decision {

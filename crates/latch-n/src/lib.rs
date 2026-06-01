@@ -33,14 +33,20 @@ fn operation_map(operation: Operation) -> latch::Operation {
         Operation::Preopens(preopens_operation) => {
             latch::Operation::Preopens(preopens_operation_map(preopens_operation))
         }
-        Operation::Descriptor((descriptor, descriptor_operation)) => latch::Operation::Descriptor(
-            (descriptor, descriptor_operation_map(descriptor_operation)),
-        ),
+        Operation::Descriptor((descriptor, path, descriptor_operation)) => {
+            latch::Operation::Descriptor((
+                descriptor,
+                path,
+                descriptor_operation_map(descriptor_operation),
+            ))
+        }
         Operation::DirectoryEntryStream((
             directory_entry_stream,
+            path,
             directory_entry_stream_operation,
         )) => latch::Operation::DirectoryEntryStream((
             directory_entry_stream,
+            path,
             directory_entry_stream_operation_map(directory_entry_stream_operation),
         )),
     }
