@@ -9,9 +9,14 @@ struct LatchN4 {}
 
 impl Latch for LatchN4 {
     #[allow(async_fn_in_trait)]
-    fn check(operation: Operation<'_>) -> Decision {
-        let checks = vec![latch0::check, latch1::check, latch2::check, latch3::check];
-        latch_n::check(operation, checks)
+    fn authorize(operation: Operation<'_>) -> Option<Decision> {
+        let authorizers = vec![
+            latch0::authorize,
+            latch1::authorize,
+            latch2::authorize,
+            latch3::authorize,
+        ];
+        latch_n::authorize(operation, authorizers)
     }
 }
 

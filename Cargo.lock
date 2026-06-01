@@ -254,6 +254,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "latch-permit-all"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
 name = "latch-readonly"
 version = "0.1.0"
 dependencies = [

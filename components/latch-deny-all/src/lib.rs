@@ -5,11 +5,11 @@ use crate::{
     wasi::filesystem::types::ErrorCode,
 };
 
-struct DenyLatch {}
+struct DenyAllLatch {}
 
-impl Latch for DenyLatch {
-    fn check(_: Operation) -> Decision {
-        Decision::Deny(ErrorCode::NotPermitted)
+impl Latch for DenyAllLatch {
+    fn authorize(_: Operation) -> Option<Decision> {
+        Some(Decision::Denied(ErrorCode::NotPermitted))
     }
 }
 
@@ -19,4 +19,4 @@ wit_bindgen::generate!({
     generate_all
 });
 
-export!(DenyLatch);
+export!(DenyAllLatch);

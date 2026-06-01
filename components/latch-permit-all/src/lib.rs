@@ -2,11 +2,11 @@
 
 use crate::exports::componentized::filesystem::latch::{Decision, Guest as Latch, Operation};
 
-struct AllowLatch {}
+struct PermitAllLatch {}
 
-impl Latch for AllowLatch {
-    fn check(_: Operation) -> Decision {
-        Decision::Allow
+impl Latch for PermitAllLatch {
+    fn authorize(_: Operation) -> Option<Decision> {
+        Some(Decision::Permitted)
     }
 }
 
@@ -16,4 +16,4 @@ wit_bindgen::generate!({
     generate_all
 });
 
-export!(AllowLatch);
+export!(PermitAllLatch);

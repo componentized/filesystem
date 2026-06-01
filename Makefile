@@ -56,22 +56,22 @@ $(foreach component,$(TEST_COMPONENTS),$(eval $(call TEST_COMPONENT,$(component)
 lib/tests/logging-to-stdout.wasm:
 	wkg oci pull ghcr.io/componentized/logging/to-stdout:v0.2.1 -o "lib/tests/logging-to-stdout.wasm"
 
-lib/tests/allow.wasm: lib/gate.wasm lib/latch-allow.wasm
+lib/tests/permit.wasm: lib/gate.wasm lib/latch-permit-all.wasm
 	wac plug lib/gate.wasm \
-		--plug lib/latch-allow.wasm \
-		-o lib/tests/allow.wasm
+		--plug lib/latch-permit-all.wasm \
+		-o lib/tests/permit.wasm
 
-lib/tests/filesystem-cli-allow.wasm: lib/tests/filesystem-cli.wasm lib/tests/allow.wasm lib/tests/logging-to-stdout.wasm
+lib/tests/filesystem-cli-permit.wasm: lib/tests/filesystem-cli.wasm lib/tests/permit.wasm lib/tests/logging-to-stdout.wasm
 	wac plug lib/tests/filesystem-cli.wasm \
 		--plug <( \
-			wac plug lib/tests/allow.wasm \
+			wac plug lib/tests/permit.wasm \
 				--plug lib/tests/logging-to-stdout.wasm \
 		) \
-		-o lib/tests/filesystem-cli-allow.wasm
+		-o lib/tests/filesystem-cli-permit.wasm
 
-lib/tests/deny.wasm: lib/gate.wasm lib/latch-deny.wasm
+lib/tests/deny.wasm: lib/gate.wasm lib/latch-deny-all.wasm
 	wac plug lib/gate.wasm \
-		--plug lib/latch-deny.wasm \
+		--plug lib/latch-deny-all.wasm \
 		-o lib/tests/deny.wasm
 
 lib/tests/filesystem-cli-deny.wasm: lib/tests/filesystem-cli.wasm lib/tests/deny.wasm lib/tests/logging-to-stdout.wasm
@@ -82,12 +82,12 @@ lib/tests/filesystem-cli-deny.wasm: lib/tests/filesystem-cli.wasm lib/tests/deny
 		) \
 		-o lib/tests/filesystem-cli-deny.wasm
 
-lib/tests/readonly.wasm: tests/readonly.wac lib/gate.wasm lib/latch-n2.wasm lib/latch-readonly.wasm lib/latch-allow.wasm
+lib/tests/readonly.wasm: tests/readonly.wac lib/gate.wasm lib/latch-n2.wasm lib/latch-readonly.wasm lib/latch-permit-all.wasm
 	wac compose -o lib/tests/readonly.wasm \
 		-d componentized:gate="lib/gate.wasm" \
 		-d componentized:latch-n2="lib/latch-n2.wasm" \
 		-d componentized:latch-readonly="lib/latch-readonly.wasm" \
-		-d componentized:latch-allow="lib/latch-allow.wasm" \
+		-d componentized:latch-permit="lib/latch-permit-all.wasm" \
 		tests/readonly.wac
 
 lib/tests/filesystem-cli-readonly.wasm: lib/tests/filesystem-cli.wasm lib/tests/readonly.wasm lib/tests/logging-to-stdout.wasm
@@ -99,7 +99,7 @@ lib/tests/filesystem-cli-readonly.wasm: lib/tests/filesystem-cli.wasm lib/tests/
 		-o lib/tests/filesystem-cli-readonly.wasm
 
 .PHONY: tests
-tests: $(foreach component,$(TEST_COMPONENTS),lib/tests/$(component).wasm) lib/tests/filesystem-cli-allow.wasm lib/tests/filesystem-cli-deny.wasm lib/tests/filesystem-cli-readonly.wasm
+tests: $(foreach component,$(TEST_COMPONENTS),lib/tests/$(component).wasm) lib/tests/filesystem-cli-permit.wasm lib/tests/filesystem-cli-deny.wasm lib/tests/filesystem-cli-readonly.wasm
 
 .PHONY: wit
 wit: wit/deps

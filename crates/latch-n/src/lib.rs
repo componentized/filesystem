@@ -13,19 +13,19 @@ use crate::bindings::{
     },
 };
 
-pub fn check(
+pub fn authorize(
     operation: Operation,
-    checks: Vec<fn(&latch::Operation<'_>) -> latch::Decision>,
-) -> Decision {
+    authorizers: Vec<fn(&latch::Operation<'_>) -> Option<latch::Decision>>,
+) -> Option<Decision> {
     let operation = operation_map(operation);
-    for check in checks {
-        match check(&operation) {
-            latch::Decision::Abstain => {}
-            latch::Decision::Allow => return Decision::Allow,
-            latch::Decision::Deny(error_code) => return Decision::Deny(error_code),
+    for authorize in authorizers {
+        match authorize(&operation) {
+            None => {}
+            Some(latch::Decision::Permitted) => return Some(Decision::Permitted),
+            Some(latch::Decision::Denied(error_code)) => return Some(Decision::Denied(error_code)),
         }
     }
-    Decision::Abstain
+    None
 }
 
 fn operation_map(operation: Operation) -> latch::Operation {

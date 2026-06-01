@@ -2,7 +2,7 @@
 
 use crate::{
     exports::componentized::filesystem::latch::{
-        Decision::{self, Abstain, Deny},
+        Decision::{self, Denied},
         DescriptorOpenAtArgs, DescriptorOperation, Guest as Latch, Operation,
     },
     wasi::filesystem::types::{DescriptorFlags, ErrorCode::ReadOnly, OpenFlags},
@@ -11,28 +11,28 @@ use crate::{
 struct ReadOnlyLatch {}
 
 impl Latch for ReadOnlyLatch {
-    fn check(operation: Operation) -> Decision {
+    fn authorize(operation: Operation) -> Option<Decision> {
         match operation {
-            Operation::Preopens(_) => Abstain,
+            Operation::Preopens(_) => None,
             Operation::Descriptor((_, descriptor_operation)) => match descriptor_operation {
-                DescriptorOperation::ReadViaStream(_) => Abstain,
-                DescriptorOperation::WriteViaStream(_) => Deny(ReadOnly),
-                DescriptorOperation::AppendViaStream => Deny(ReadOnly),
-                DescriptorOperation::Advise(_) => Abstain,
-                DescriptorOperation::SyncData => Deny(ReadOnly),
-                DescriptorOperation::GetFlags => Abstain,
-                DescriptorOperation::GetType => Abstain,
-                DescriptorOperation::SetSize(_) => Deny(ReadOnly),
-                DescriptorOperation::SetTimes(_) => Deny(ReadOnly),
-                DescriptorOperation::Read(_) => Abstain,
-                DescriptorOperation::Write(_) => Deny(ReadOnly),
-                DescriptorOperation::ReadDirectory => Abstain,
-                DescriptorOperation::Sync => Deny(ReadOnly),
-                DescriptorOperation::CreateDirectoryAt(_) => Deny(ReadOnly),
-                DescriptorOperation::Stat => Abstain,
-                DescriptorOperation::StatAt(_) => Abstain,
-                DescriptorOperation::SetTimesAt(_) => Deny(ReadOnly),
-                DescriptorOperation::LinkAt(_) => Deny(ReadOnly),
+                DescriptorOperation::ReadViaStream(_) => None,
+                DescriptorOperation::WriteViaStream(_) => Some(Denied(ReadOnly)),
+                DescriptorOperation::AppendViaStream => Some(Denied(ReadOnly)),
+                DescriptorOperation::Advise(_) => None,
+                DescriptorOperation::SyncData => Some(Denied(ReadOnly)),
+                DescriptorOperation::GetFlags => None,
+                DescriptorOperation::GetType => None,
+                DescriptorOperation::SetSize(_) => Some(Denied(ReadOnly)),
+                DescriptorOperation::SetTimes(_) => Some(Denied(ReadOnly)),
+                DescriptorOperation::Read(_) => None,
+                DescriptorOperation::Write(_) => Some(Denied(ReadOnly)),
+                DescriptorOperation::ReadDirectory => None,
+                DescriptorOperation::Sync => Some(Denied(ReadOnly)),
+                DescriptorOperation::CreateDirectoryAt(_) => Some(Denied(ReadOnly)),
+                DescriptorOperation::Stat => None,
+                DescriptorOperation::StatAt(_) => None,
+                DescriptorOperation::SetTimesAt(_) => Some(Denied(ReadOnly)),
+                DescriptorOperation::LinkAt(_) => Some(Denied(ReadOnly)),
                 DescriptorOperation::OpenAt(DescriptorOpenAtArgs {
                     open_flags, flags, ..
                 }) => {
@@ -46,20 +46,20 @@ impl Latch for ReadOnlyLatch {
                             .union(DescriptorFlags::DATA_INTEGRITY_SYNC)
                             .union(DescriptorFlags::REQUESTED_WRITE_SYNC),
                     ) {
-                        Deny(ReadOnly)
+                        Some(Denied(ReadOnly))
                     } else {
-                        Abstain
+                        None
                     }
                 }
-                DescriptorOperation::ReadlinkAt(_) => Abstain,
-                DescriptorOperation::RemoveDirectoryAt(_) => Deny(ReadOnly),
-                DescriptorOperation::RenameAt(_) => Deny(ReadOnly),
-                DescriptorOperation::SymlinkAt(_) => Deny(ReadOnly),
-                DescriptorOperation::UnlinkFileAt(_) => Deny(ReadOnly),
-                DescriptorOperation::MetadataHash => Abstain,
-                DescriptorOperation::MetadataHashAt(_) => Abstain,
+                DescriptorOperation::ReadlinkAt(_) => None,
+                DescriptorOperation::RemoveDirectoryAt(_) => Some(Denied(ReadOnly)),
+                DescriptorOperation::RenameAt(_) => Some(Denied(ReadOnly)),
+                DescriptorOperation::SymlinkAt(_) => Some(Denied(ReadOnly)),
+                DescriptorOperation::UnlinkFileAt(_) => Some(Denied(ReadOnly)),
+                DescriptorOperation::MetadataHash => None,
+                DescriptorOperation::MetadataHashAt(_) => None,
             },
-            Operation::DirectoryEntryStream(_) => Abstain,
+            Operation::DirectoryEntryStream(_) => None,
         }
     }
 }
