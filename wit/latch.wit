@@ -142,7 +142,7 @@ interface latch {
     }
 
     variant decision {
-        permitted,
+        granted,
         denied(error-code),
     }
 

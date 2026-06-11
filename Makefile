@@ -56,18 +56,18 @@ $(foreach component,$(TEST_COMPONENTS),$(eval $(call TEST_COMPONENT,$(component)
 lib/tests/logging-to-stdout.wasm:
 	wkg oci pull ghcr.io/componentized/logging/to-stdout:v0.2.1 -o "lib/tests/logging-to-stdout.wasm"
 
-lib/tests/permit.wasm: lib/gate.wasm lib/latch-permit-all.wasm
+lib/tests/grant.wasm: lib/gate.wasm lib/latch-grant-all.wasm
 	wac plug lib/gate.wasm \
-		--plug lib/latch-permit-all.wasm \
-		-o lib/tests/permit.wasm
+		--plug lib/latch-grant-all.wasm \
+		-o lib/tests/grant.wasm
 
-lib/tests/filesystem-cli-permit.wasm: lib/tests/filesystem-cli.wasm lib/tests/permit.wasm lib/tests/logging-to-stdout.wasm
+lib/tests/filesystem-cli-grant.wasm: lib/tests/filesystem-cli.wasm lib/tests/grant.wasm lib/tests/logging-to-stdout.wasm
 	wac plug lib/tests/filesystem-cli.wasm \
 		--plug <( \
-			wac plug lib/tests/permit.wasm \
+			wac plug lib/tests/grant.wasm \
 				--plug lib/tests/logging-to-stdout.wasm \
 		) \
-		-o lib/tests/filesystem-cli-permit.wasm
+		-o lib/tests/filesystem-cli-grant.wasm
 
 lib/tests/deny.wasm: lib/gate.wasm lib/latch-deny-all.wasm
 	wac plug lib/gate.wasm \
@@ -82,7 +82,7 @@ lib/tests/filesystem-cli-deny.wasm: lib/tests/filesystem-cli.wasm lib/tests/deny
 		) \
 		-o lib/tests/filesystem-cli-deny.wasm
 
-lib/tests/readonly.wasm: lib/gate.wasm lib/latch-n2.wasm lib/latch-readonly.wasm lib/latch-permit-all.wasm
+lib/tests/readonly.wasm: lib/gate.wasm lib/latch-n2.wasm lib/latch-readonly.wasm lib/latch-grant-all.wasm
 	wac plug lib/gate.wasm \
 		--plug lib/latch-readonly.wasm \
 		-o lib/tests/readonly.wasm
@@ -96,7 +96,7 @@ lib/tests/filesystem-cli-readonly.wasm: lib/tests/filesystem-cli.wasm lib/tests/
 		-o lib/tests/filesystem-cli-readonly.wasm
 
 .PHONY: tests
-tests: $(foreach component,$(TEST_COMPONENTS),lib/tests/$(component).wasm) lib/tests/filesystem-cli-permit.wasm lib/tests/filesystem-cli-deny.wasm lib/tests/filesystem-cli-readonly.wasm
+tests: $(foreach component,$(TEST_COMPONENTS),lib/tests/$(component).wasm) lib/tests/filesystem-cli-grant.wasm lib/tests/filesystem-cli-deny.wasm lib/tests/filesystem-cli-readonly.wasm
 
 .PHONY: wit
 wit: wit/deps

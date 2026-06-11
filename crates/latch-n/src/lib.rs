@@ -21,7 +21,7 @@ pub fn authorize(
     for authorize in authorizers {
         match authorize(&operation) {
             None => {}
-            Some(latch::Decision::Permitted) => return Some(Decision::Permitted),
+            Some(latch::Decision::Granted) => return Some(Decision::Granted),
             Some(latch::Decision::Denied(error_code)) => return Some(Decision::Denied(error_code)),
         }
     }

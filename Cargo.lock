@@ -233,6 +233,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "latch-grant-all"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
 name = "latch-n"
 version = "0.1.0"
 dependencies = [
@@ -265,13 +272,6 @@ name = "latch-n5"
 version = "0.1.0"
 dependencies = [
  "latch-n",
-]
-
-[[package]]
-name = "latch-permit-all"
-version = "0.1.0"
-dependencies = [
- "wit-bindgen",
 ]
 
 [[package]]

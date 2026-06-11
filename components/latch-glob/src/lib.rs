@@ -17,7 +17,7 @@ struct GlobLatch {}
 struct Patterns {
     initialized: bool,
     denies: Option<Vec<Box<dyn PathMatcher>>>,
-    permits: Option<Vec<Box<dyn PathMatcher>>>,
+    grants: Option<Vec<Box<dyn PathMatcher>>>,
     deny_reason: Option<ErrorCode>,
 }
 
@@ -28,7 +28,7 @@ impl Patterns {
         }
 
         let mut denies: Vec<Box<dyn PathMatcher>> = vec![];
-        let mut permits: Vec<Box<dyn PathMatcher>> = vec![];
+        let mut grants: Vec<Box<dyn PathMatcher>> = vec![];
         let mut reason = ErrorCode::NotPermitted;
 
         for (key, value) in wasi::config::store::get_all().expect("config must be available") {
@@ -36,8 +36,8 @@ impl Patterns {
                 denies.push(Box::new(
                     glob(&value).expect("config value must parse as a glob"),
                 ));
-            } else if key.starts_with("permit") {
-                permits.push(Box::new(
+            } else if key.starts_with("grant") {
+                grants.push(Box::new(
                     glob(&value).expect("config value must parse as a glob"),
                 ));
             } else if key == "reason" {
@@ -47,7 +47,7 @@ impl Patterns {
 
         unsafe {
             STATE.denies = Some(denies);
-            STATE.permits = Some(permits);
+            STATE.grants = Some(grants);
             STATE.deny_reason = Some(reason);
             STATE.initialized = true;
         };
@@ -63,9 +63,9 @@ impl Patterns {
         for p in paths {
             let path = Path::new(&path).join(p);
             match unsafe { STATE.authorize_path(&path) } {
-                // return denies immediately, buffer permits
+                // return denies immediately, buffer grants
                 Some(Decision::Denied(reason)) => return Some(Decision::Denied(reason)),
-                Some(Decision::Permitted) => decision = Some(Decision::Permitted),
+                Some(Decision::Granted) => decision = Some(Decision::Granted),
                 None => {}
             }
         }
@@ -78,9 +78,9 @@ impl Patterns {
                 return Some(Decision::Denied(self.deny_reason.unwrap()));
             }
         }
-        for permit in self.permits.as_ref().unwrap() {
-            if permit.matches(path) {
-                return Some(Decision::Permitted);
+        for grant in self.grants.as_ref().unwrap() {
+            if grant.matches(path) {
+                return Some(Decision::Granted);
             }
         }
         None
@@ -90,7 +90,7 @@ impl Patterns {
 static mut STATE: Patterns = Patterns {
     initialized: false,
     denies: None,
-    permits: None,
+    grants: None,
     deny_reason: None,
 };
 
