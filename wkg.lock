@@ -16,9 +16,9 @@ name = "wasi:filesystem"
 registry = "wasi.dev"
 
 [[packages.versions]]
-requirement = "=0.2.6"
-version = "0.2.6"
-digest = "sha256:7b735005e020ee3d727d995c05849c59bbf084b51a054013c0f0796c571e1ab0"
+requirement = "=0.3.0"
+version = "0.3.0"
+digest = "sha256:42921410cddcdce2e009fd65c9a763bfb3fb61e2c0a64ff71647cc4405470378"
 
 [[packages]]
 name = "wasi:logging"
