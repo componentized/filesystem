@@ -19,14 +19,17 @@ components: $(foreach component,$(COMPONENTS),lib/$(component).wasm $(foreach co
 
 define BUILD_COMPONENT
 
+.PHONY: components/$1
+components/$1: lib/$1.wasm lib/$1.debug.wasm
+
 lib/$1.wasm: Cargo.toml Cargo.lock wit/deps $(shell find components/$1 -type f)
-	cargo component build -p $1 --target wasm32-unknown-unknown --release
-	cp target/wasm32-unknown-unknown/release/$(subst -,_,$1).wasm lib/$1.wasm
+	cargo build -p $1 --target wasm32-unknown-unknown --release
+	wasm-tools component new target/wasm32-unknown-unknown/release/$(subst -,_,$1).wasm -o lib/$1.wasm
 	cp components/$1/README.md lib/$1.wasm.md
 
 lib/$1.debug.wasm: Cargo.toml Cargo.lock wit/deps $(shell find components/$1 -type f)
-	cargo component build -p $1 --target wasm32-wasip2
-	cp target/wasm32-wasip2/debug/$(subst -,_,$1).wasm lib/$1.debug.wasm
+	cargo build -p $1 --target wasm32-unknown-unknown
+	wasm-tools component new target/wasm32-unknown-unknown/debug/$(subst -,_,$1).wasm -o lib/$1.debug.wasm
 	cp components/$1/README.md lib/$1.debug.wasm.md
 
 endef

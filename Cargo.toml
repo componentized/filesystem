@@ -5,4 +5,6 @@ members = [
 ]
 
 [workspace.dependencies]
-wit-bindgen = "0.58.0"
+chrono = { git = "https://github.com/chronotope/chrono.git", branch = "0.5.x" }
+heck = "0.5"
+wit-bindgen = { version = "0.58.0", git = "https://github.com/bytecodealliance/wit-bindgen.git", branch = "main" }
