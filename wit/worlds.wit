@@ -17,10 +17,11 @@ world filesystem-latch {
 
 world filesystem-latch-n {
     export latch;
+    import latch;
     import latch1;
     import latch2;
     import latch3;
     import latch4;
-    import wasi:filesystem/preopens@0.2.6;
-    import wasi:filesystem/types@0.2.6;
+    import wasi:filesystem/preopens@0.3.0;
+    import wasi:filesystem/types@0.3.0;
 }

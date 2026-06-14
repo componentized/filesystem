@@ -24,8 +24,6 @@ impl Latch for ReadOnlyLatch {
                 DescriptorOperation::GetType => None,
                 DescriptorOperation::SetSize(_) => Some(Denied(ReadOnly)),
                 DescriptorOperation::SetTimes(_) => Some(Denied(ReadOnly)),
-                DescriptorOperation::Read(_) => None,
-                DescriptorOperation::Write(_) => Some(Denied(ReadOnly)),
                 DescriptorOperation::ReadDirectory => None,
                 DescriptorOperation::Sync => Some(Denied(ReadOnly)),
                 DescriptorOperation::CreateDirectoryAt(_) => Some(Denied(ReadOnly)),
@@ -59,7 +57,6 @@ impl Latch for ReadOnlyLatch {
                 DescriptorOperation::MetadataHash => None,
                 DescriptorOperation::MetadataHashAt(_) => None,
             },
-            Operation::DirectoryEntryStream(_) => None,
         }
     }
 }
@@ -67,6 +64,7 @@ impl Latch for ReadOnlyLatch {
 wit_bindgen::generate!({
     path: "../../wit",
     world: "filesystem-latch",
+    merge_structurally_equal_types: true,
     generate_all
 });
 

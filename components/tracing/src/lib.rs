@@ -507,13 +507,8 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
 }
 
 impl Display for TracingDescriptor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            &self
-                .path
-                .to_str()
-                .expect("path contains invalid unicode characters"),
-        )
+    fn fmt(&self, d: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        d.write_fmt(format_args!("{}", self.path.display()))
     }
 }
 

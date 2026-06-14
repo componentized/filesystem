@@ -1,6 +1,6 @@
 
 interface latch {
-    use wasi:filesystem/types@0.2.6.{advice, descriptor, descriptor-flags, directory-entry, directory-entry-stream, error-code, filesize, open-flags, new-timestamp, path-flags};
+    use wasi:filesystem/types@0.3.0.{advice, descriptor, descriptor-flags, error-code, filesize, open-flags, new-timestamp, path-flags};
 
     record descriptor-get-directory-args {
         path: string,
@@ -27,16 +27,6 @@ interface latch {
     record descriptor-set-times-args {
         data-access-timestamp: new-timestamp,
         data-modification-timestamp: new-timestamp,
-    }
-
-    record descriptor-read-args {
-        length: filesize,
-        offset: filesize,
-    }
-
-    record descriptor-write-args {
-        buffer-length: u64, // derived from buffer: list<u8>
-        offset: filesize,
     }
 
     record descriptor-create-directory-at-args {
@@ -112,8 +102,6 @@ interface latch {
         get-type,
         set-size(descriptor-set-size-args),
         set-times(descriptor-set-times-args),
-        read(descriptor-read-args),
-        write(descriptor-write-args),
         read-directory,
         sync,
         create-directory-at(descriptor-create-directory-at-args),
@@ -131,14 +119,9 @@ interface latch {
         metadata-hash-at(descriptor-metadata-hash-at-args),
     }
 
-    variant directory-entry-stream-operation {
-        read-directory-entry(directory-entry),
-    }
-
     variant operation {
         preopens(preopens-operation),
         descriptor(tuple<borrow<descriptor>, string, descriptor-operation>),
-        directory-entry-stream(tuple<borrow<directory-entry-stream>, string, directory-entry-stream-operation>),
     }
 
     variant decision {
@@ -148,6 +131,13 @@ interface latch {
 
     authorize: func(operation: operation) -> option<decision>;
 }
+
+interface latch0 {
+    use latch.{operation, decision};
+
+    authorize: func(operation: operation) -> option<decision>;
+}
+
 
 interface latch1 {
     use latch.{operation, decision};

@@ -13,6 +13,7 @@ impl Latch for GrantAllLatch {
 wit_bindgen::generate!({
     path: "../../wit",
     world: "filesystem-latch",
+    merge_structurally_equal_types: true,
     generate_all
 });
 
