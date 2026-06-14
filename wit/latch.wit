@@ -29,16 +29,6 @@ interface latch {
         data-modification-timestamp: new-timestamp,
     }
 
-    record descriptor-read-args {
-        length: filesize,
-        offset: filesize,
-    }
-
-    record descriptor-write-args {
-        buffer-length: u64, // derived from buffer: list<u8>
-        offset: filesize,
-    }
-
     record descriptor-create-directory-at-args {
         path: string,
     }

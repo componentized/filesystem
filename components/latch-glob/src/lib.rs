@@ -6,8 +6,7 @@ use path_matchers::{glob, PathMatcher};
 
 use crate::{
     exports::componentized::filesystem::latch::{
-        Decision, DescriptorOperation, DirectoryEntryStreamOperation, Guest as Latch, Operation,
-        PreopensOperation,
+        Decision, DescriptorOperation, Guest as Latch, Operation, PreopensOperation,
     },
     wasi::filesystem::types::ErrorCode,
 };
@@ -18,7 +17,7 @@ struct Patterns {
     initialized: bool,
     denies: Option<Vec<Box<dyn PathMatcher>>>,
     grants: Option<Vec<Box<dyn PathMatcher>>>,
-    deny_reason: Option<ErrorCode>,
+    deny_reason: ErrorCode,
 }
 
 impl Patterns {
@@ -41,14 +40,14 @@ impl Patterns {
                     glob(&value).expect("config value must parse as a glob"),
                 ));
             } else if key == "reason" {
-                reason = get_error_code(value).unwrap_or(ErrorCode::NotPermitted);
+                reason = get_error_code(value);
             }
         }
 
         unsafe {
             STATE.denies = Some(denies);
             STATE.grants = Some(grants);
-            STATE.deny_reason = Some(reason);
+            STATE.deny_reason = reason;
             STATE.initialized = true;
         };
     }
@@ -75,7 +74,7 @@ impl Patterns {
     fn authorize_path(&self, path: &Path) -> Option<Decision> {
         for deny in self.denies.as_ref().unwrap() {
             if deny.matches(path) {
-                return Some(Decision::Denied(self.deny_reason.unwrap()));
+                return Some(Decision::Denied(self.deny_reason.clone()));
             }
         }
         for grant in self.grants.as_ref().unwrap() {
@@ -91,7 +90,7 @@ static mut STATE: Patterns = Patterns {
     initialized: false,
     denies: None,
     grants: None,
-    deny_reason: None,
+    deny_reason: ErrorCode::NotPermitted,
 };
 
 impl Latch for GlobLatch {
@@ -114,8 +113,6 @@ impl Latch for GlobLatch {
                 DescriptorOperation::GetType => Patterns::authorize(path, vec![]),
                 DescriptorOperation::SetSize(_) => Patterns::authorize(path, vec![]),
                 DescriptorOperation::SetTimes(_) => Patterns::authorize(path, vec![]),
-                DescriptorOperation::Read(_) => Patterns::authorize(path, vec![]),
-                DescriptorOperation::Write(_) => Patterns::authorize(path, vec![]),
                 DescriptorOperation::ReadDirectory => Patterns::authorize(path, vec![]),
                 DescriptorOperation::Sync => Patterns::authorize(path, vec![]),
                 DescriptorOperation::CreateDirectoryAt(args) => {
@@ -146,63 +143,57 @@ impl Latch for GlobLatch {
                     Patterns::authorize(path, vec![args.path])
                 }
             },
-            Operation::DirectoryEntryStream((_, path, directory_entry_stream_operation)) => {
-                match directory_entry_stream_operation {
-                    DirectoryEntryStreamOperation::ReadDirectoryEntry(directory_entry) => {
-                        Patterns::authorize(path, vec![directory_entry.name])
-                    }
-                }
-            }
         }
     }
 }
 
-fn get_error_code(value: String) -> Option<ErrorCode> {
+fn get_error_code(value: String) -> ErrorCode {
     match value.as_str() {
-        "access" => Some(ErrorCode::Access),
-        "wouldblock" => Some(ErrorCode::WouldBlock),
-        "already" => Some(ErrorCode::Already),
-        "bad-descriptor" => Some(ErrorCode::BadDescriptor),
-        "busy" => Some(ErrorCode::Busy),
-        "deadlock" => Some(ErrorCode::Deadlock),
-        "quota" => Some(ErrorCode::Quota),
-        "exist" => Some(ErrorCode::Exist),
-        "file-too-large" => Some(ErrorCode::FileTooLarge),
-        "illegal-byte-sequence" => Some(ErrorCode::IllegalByteSequence),
-        "in-progress" => Some(ErrorCode::InProgress),
-        "interrupted" => Some(ErrorCode::Interrupted),
-        "invalid" => Some(ErrorCode::Invalid),
-        "io" => Some(ErrorCode::Io),
-        "is-directory" => Some(ErrorCode::IsDirectory),
-        "loop" => Some(ErrorCode::Loop),
-        "too-many-links" => Some(ErrorCode::TooManyLinks),
-        "message-size" => Some(ErrorCode::MessageSize),
-        "name-too-long" => Some(ErrorCode::NameTooLong),
-        "no-device" => Some(ErrorCode::NoDevice),
-        "no-entry" => Some(ErrorCode::NoEntry),
-        "no-lock" => Some(ErrorCode::NoLock),
-        "insufficient-memory" => Some(ErrorCode::InsufficientMemory),
-        "insufficient-space" => Some(ErrorCode::InsufficientSpace),
-        "not-directory" => Some(ErrorCode::NotDirectory),
-        "not-empty" => Some(ErrorCode::NotEmpty),
-        "not-recoverable" => Some(ErrorCode::NotRecoverable),
-        "unsupported" => Some(ErrorCode::Unsupported),
-        "no-tty" => Some(ErrorCode::NoTty),
-        "no-such-device" => Some(ErrorCode::NoSuchDevice),
-        "overflow" => Some(ErrorCode::Overflow),
-        "not-permitted" => Some(ErrorCode::NotPermitted),
-        "pipe" => Some(ErrorCode::Pipe),
-        "read-only" => Some(ErrorCode::ReadOnly),
-        "invalid-seek" => Some(ErrorCode::InvalidSeek),
-        "text-file-busy" => Some(ErrorCode::TextFileBusy),
-        "cross-device" => Some(ErrorCode::CrossDevice),
-        _ => None,
+        "access" => ErrorCode::Access,
+        "already" => ErrorCode::Already,
+        "bad-descriptor" => ErrorCode::BadDescriptor,
+        "busy" => ErrorCode::Busy,
+        "deadlock" => ErrorCode::Deadlock,
+        "quota" => ErrorCode::Quota,
+        "exist" => ErrorCode::Exist,
+        "file-too-large" => ErrorCode::FileTooLarge,
+        "illegal-byte-sequence" => ErrorCode::IllegalByteSequence,
+        "in-progress" => ErrorCode::InProgress,
+        "interrupted" => ErrorCode::Interrupted,
+        "invalid" => ErrorCode::Invalid,
+        "io" => ErrorCode::Io,
+        "is-directory" => ErrorCode::IsDirectory,
+        "loop" => ErrorCode::Loop,
+        "too-many-links" => ErrorCode::TooManyLinks,
+        "message-size" => ErrorCode::MessageSize,
+        "name-too-long" => ErrorCode::NameTooLong,
+        "no-device" => ErrorCode::NoDevice,
+        "no-entry" => ErrorCode::NoEntry,
+        "no-lock" => ErrorCode::NoLock,
+        "insufficient-memory" => ErrorCode::InsufficientMemory,
+        "insufficient-space" => ErrorCode::InsufficientSpace,
+        "not-directory" => ErrorCode::NotDirectory,
+        "not-empty" => ErrorCode::NotEmpty,
+        "not-recoverable" => ErrorCode::NotRecoverable,
+        "unsupported" => ErrorCode::Unsupported,
+        "no-tty" => ErrorCode::NoTty,
+        "no-such-device" => ErrorCode::NoSuchDevice,
+        "overflow" => ErrorCode::Overflow,
+        "not-permitted" => ErrorCode::NotPermitted,
+        "pipe" => ErrorCode::Pipe,
+        "read-only" => ErrorCode::ReadOnly,
+        "invalid-seek" => ErrorCode::InvalidSeek,
+        "text-file-busy" => ErrorCode::TextFileBusy,
+        "cross-device" => ErrorCode::CrossDevice,
+        "other" => ErrorCode::Other(None),
+        _ => ErrorCode::Other(Some(value)),
     }
 }
 
 wit_bindgen::generate!({
     path: "../../wit",
     world: "filesystem-latch",
+    merge_structurally_equal_types: true,
     generate_all
 });
 

@@ -1169,6 +1169,39 @@ impl Display for types::PathFlags {
     }
 }
 
+impl Display for types::NewTimestamp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            types::NewTimestamp::NoChange => f.write_str("no-change"),
+            types::NewTimestamp::Now => f.write_str("now"),
+            types::NewTimestamp::Timestamp(instant) => {
+                f.write_fmt(format_args!("timestamp<{instant}>"))
+            }
+        }
+    }
+}
+
+impl Display for types::Instant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let date = DateTime::from_timestamp(self.seconds as i64, self.nanoseconds)
+            .unwrap()
+            .format("%Y-%m-%d %H:%M:%S.%3fZ");
+
+        f.write_fmt(format_args!("{date}"))
+    }
+}
+
+impl Display for types::DescriptorType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            types::DescriptorType::Other(Some(type_)) => {
+                f.write_fmt(format_args!("other<{type_}>"))
+            }
+            _ => f.write_str(&self.to_string().to_kebab_case()),
+        }
+    }
+}
+
 wit_bindgen::generate!({
     path: "../wit",
     world: "filesystem",
