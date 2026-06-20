@@ -20,6 +20,8 @@ A collection of utility components that remix wasi:filesystem types and interfac
 
 ## Build
 
+A [dev container](https://containers.dev) is available that contains the necessary tools and configuration out of the box.
+
 Prereqs:
 - a rust toolchain
 - [`wasm-tools`](https://github.com/bytecodealliance/wasm-tools)
