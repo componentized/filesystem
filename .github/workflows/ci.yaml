@@ -48,6 +48,8 @@ jobs:
             wasm-tools component wit "${component}"
           echo "::endgroup::"
         done
+    - name: Build test components
+      run: make tests
 
   publish:
     if: github.event_name == 'push' && ( startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' )

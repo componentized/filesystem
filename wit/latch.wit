@@ -1,0 +1,164 @@
+
+interface latch {
+    use wasi:filesystem/types@0.3.0.{advice, descriptor, descriptor-flags, error-code, filesize, open-flags, new-timestamp, path-flags};
+
+    record descriptor-get-directory-args {
+        path: string,
+    }
+
+    record descriptor-read-via-stream-args {
+        offset: filesize,
+    }
+
+    record descriptor-write-via-stream-args {
+        offset: filesize,
+    }
+
+    record descriptor-advise-args {
+        offset: filesize,
+        length: filesize,
+        advice: advice,
+    }
+
+    record descriptor-set-size-args {
+        size: filesize,
+    }
+
+    record descriptor-set-times-args {
+        data-access-timestamp: new-timestamp,
+        data-modification-timestamp: new-timestamp,
+    }
+
+    record descriptor-create-directory-at-args {
+        path: string,
+    }
+
+    record descriptor-stat-at-args {
+        path-flags: path-flags,
+        path: string,
+    }
+
+    record descriptor-set-times-at-args {
+        path-flags: path-flags,
+        path: string,
+        data-access-timestamp: new-timestamp,
+        data-modification-timestamp: new-timestamp,
+    }
+
+    record descriptor-link-at-args {
+        old-path-flags: path-flags,
+        old-path: string,
+        new-descriptor: borrow<descriptor>,
+        new-path: string,
+    }
+
+    record descriptor-open-at-args {
+        path-flags: path-flags,
+        path: string,
+        open-flags: open-flags,
+        %flags: descriptor-flags,
+    }
+
+    record descriptor-readlink-at-args {
+        path: string,
+    }
+
+    record descriptor-remove-directory-at-args {
+        path: string,
+    }
+
+    record descriptor-rename-at-args {
+        old-path: string,
+        new-descriptor: borrow<descriptor>,
+        new-path: string,
+    }
+
+    record descriptor-symlink-at-args {
+        old-path: string,
+        new-path: string,
+    }
+
+    record descriptor-unlink-file-at-args {
+        path: string,
+    }
+
+
+    record descriptor-metadata-hash-at-args {
+        path-flags: path-flags,
+        path: string,
+    }
+
+    variant preopens-operation {
+        get-directories-item(tuple<borrow<descriptor>, string>),
+    }
+
+    variant descriptor-operation {
+        read-via-stream(descriptor-read-via-stream-args),
+        write-via-stream(descriptor-write-via-stream-args),
+        append-via-stream,
+        advise(descriptor-advise-args),
+        sync-data,
+        get-flags,
+        get-type,
+        set-size(descriptor-set-size-args),
+        set-times(descriptor-set-times-args),
+        read-directory,
+        sync,
+        create-directory-at(descriptor-create-directory-at-args),
+        stat,
+        stat-at(descriptor-stat-at-args),
+        set-times-at( descriptor-set-times-at-args),
+        link-at(descriptor-link-at-args),
+        open-at(descriptor-open-at-args),
+        readlink-at(descriptor-readlink-at-args),
+        remove-directory-at(descriptor-remove-directory-at-args),
+        rename-at(descriptor-rename-at-args),
+        symlink-at(descriptor-symlink-at-args),
+        unlink-file-at(descriptor-unlink-file-at-args),
+        metadata-hash,
+        metadata-hash-at(descriptor-metadata-hash-at-args),
+    }
+
+    variant operation {
+        preopens(preopens-operation),
+        descriptor(tuple<borrow<descriptor>, string, descriptor-operation>),
+    }
+
+    variant decision {
+        granted,
+        denied(error-code),
+    }
+
+    authorize: func(operation: operation) -> option<decision>;
+}
+
+interface latch0 {
+    use latch.{operation, decision};
+
+    authorize: func(operation: operation) -> option<decision>;
+}
+
+
+interface latch1 {
+    use latch.{operation, decision};
+
+    authorize: func(operation: operation) -> option<decision>;
+}
+
+interface latch2 {
+    use latch.{operation, decision};
+
+    authorize: func(operation: operation) -> option<decision>;
+}
+
+interface latch3 {
+    use latch.{operation, decision};
+
+    authorize: func(operation: operation) -> option<decision>;
+}
+
+interface latch4 {
+    use latch.{operation, decision};
+
+    authorize: func(operation: operation) -> option<decision>;
+}

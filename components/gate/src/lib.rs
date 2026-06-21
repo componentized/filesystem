@@ -6,60 +6,79 @@ use std::path::PathBuf;
 use chrono::DateTime;
 use heck::ToKebabCase;
 
-use exports::wasi::filesystem::preopens::Guest as Preopens;
-use exports::wasi::filesystem::types::{
+use crate::componentized::filesystem::latch::Decision::Denied;
+use crate::componentized::filesystem::latch::{
+    self, authorize, DescriptorOperation, Operation, PreopensOperation,
+};
+use crate::exports::wasi::filesystem::preopens::Guest as Preopens;
+use crate::exports::wasi::filesystem::types::{
     Advice, Descriptor, DescriptorBorrow, DescriptorFlags, DescriptorStat, DescriptorType,
     DirectoryEntry, ErrorCode, Filesize, Guest as Types, MetadataHashValue, NewTimestamp,
     OpenFlags, PathFlags,
 };
-use wasi::filesystem::preopens;
-use wasi::filesystem::types;
-use wasi::logging::logging::{log, Level};
+use crate::wasi::filesystem::preopens;
+use crate::wasi::filesystem::types;
+use crate::wasi::logging::logging::{log, Level};
 
-#[macro_export]
-macro_rules! trace {
+macro_rules! warn {
     ($dst:expr, $($arg:tt)*) => {
-        log(Level::Trace, "filesystem", &format!($dst, $($arg)*));
+        log(Level::Warn, "componentized-gate", &format!($dst, $($arg)*));
     };
     ($dst:expr) => {
-        log(Level::Trace, "filesystem", &format!($dst));
+        log(Level::Warn, "componentized-gate", &format!($dst));
     };
 }
 
-struct FilesystemTracing {}
+macro_rules! trace {
+    ($dst:expr, $($arg:tt)*) => {
+        log(Level::Trace, "componentized-gate", &format!($dst, $($arg)*));
+    };
+    ($dst:expr) => {
+        log(Level::Trace, "componentized-gate", &format!($dst));
+    };
+}
 
-impl Preopens for FilesystemTracing {
+struct GatedFilesystem {}
+
+impl Preopens for GatedFilesystem {
     #[doc = "/ Return the set of preopened directories, and their paths."]
     #[allow(async_fn_in_trait)]
     fn get_directories() -> Vec<(Descriptor, String)> {
-        trace!("CALL wasi:filesystem/preopens#get-directories");
-
         preopens::get_directories()
             .into_iter()
+            .filter(|(fs, path)| {
+                match authorize(&Operation::Preopens(PreopensOperation::GetDirectoriesItem((fs, path.clone())))) {
+                    Some(Denied(reason)) => {
+                        trace!("Denied REASON={reason} OPERATION=wasi:filesystem/preopens#get-directories PATH={path}");
+                        false
+                    }
+                    _ => true,
+                }
+            })
             .map(|(fd, path)| {
-                let fd = Descriptor::new(TracingDescriptor::new(fd, PathBuf::from(path.clone())));
+                let fd = Descriptor::new(GatedFileDescriptor::new(fd, PathBuf::from(path.clone())));
                 (fd, path)
             })
             .collect()
     }
 }
 
-impl Types for FilesystemTracing {
-    type Descriptor = TracingDescriptor;
+impl Types for GatedFilesystem {
+    type Descriptor = GatedFileDescriptor;
 }
 
-struct TracingDescriptor {
+struct GatedFileDescriptor {
     fd: types::Descriptor,
     path: PathBuf,
 }
 
-impl TracingDescriptor {
+impl GatedFileDescriptor {
     fn new(fd: types::Descriptor, path: PathBuf) -> Self {
         Self { fd, path }
     }
 }
 
-impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
+impl exports::wasi::filesystem::types::GuestDescriptor for GatedFileDescriptor {
     #[doc = "/ Return a stream for reading from a file."]
     #[doc = "/"]
     #[doc = "/ Multiple read, write, and append streams may be active on the same open"]
@@ -84,9 +103,21 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
         wit_bindgen::StreamReader<u8>,
         wit_bindgen::FutureReader<Result<(), ErrorCode>>,
     ) {
-        trace!("CALL wasi:filesystem/types#descriptor.read-via-stream FD={self} OFFSET={offset}");
-
-        self.fd.read_via_stream(offset)
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::ReadViaStream(latch::DescriptorReadViaStreamArgs { offset }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.read-via-stream FD={self} OFFSET={offset}");
+                let (_, data_reader) = wit_stream::new();
+                let (result_writer, result_reader) =
+                    wit_future::new(|| Err(ErrorCode::Other(None)));
+                result_writer.write(Err(reason));
+                (data_reader, result_reader)
+            }
+            _ => self.fd.read_via_stream(offset),
+        }
     }
 
     #[doc = "/ Return a stream for writing to a file, if available."]
@@ -107,9 +138,20 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
         data: wit_bindgen::StreamReader<u8>,
         offset: Filesize,
     ) -> wit_bindgen::FutureReader<Result<(), ErrorCode>> {
-        trace!("CALL wasi:filesystem/types#descriptor.write-via-stream FD={self} OFFSET={offset}");
-
-        self.fd.write_via_stream(data, offset)
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::WriteViaStream(latch::DescriptorWriteViaStreamArgs { offset }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.write-via-stream FD={self} OFFSET={offset}");
+                let (result_writer, result_reader) =
+                    wit_future::new(|| Err(ErrorCode::Other(None)));
+                result_writer.write(Err(reason));
+                result_reader
+            }
+            _ => self.fd.write_via_stream(data, offset),
+        }
     }
 
     #[doc = "/ Return a stream for appending to a file, if available."]
@@ -125,9 +167,20 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
         &self,
         data: wit_bindgen::StreamReader<u8>,
     ) -> wit_bindgen::FutureReader<Result<(), ErrorCode>> {
-        trace!("CALL wasi:filesystem/types#descriptor.append-via-stream FD={self}",);
-
-        self.fd.append_via_stream(data)
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::AppendViaStream,
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.append-via-stream FD={self}");
+                let (result_writer, result_reader) =
+                    wit_future::new(|| Err(ErrorCode::Other(None)));
+                result_writer.write(Err(reason));
+                result_reader
+            }
+            _ => self.fd.append_via_stream(data),
+        }
     }
 
     #[doc = "/ Provide file advisory information on a descriptor."]
@@ -140,9 +193,21 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
         length: Filesize,
         advice: Advice,
     ) -> Result<(), ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.advise FD={self} OFFSET={offset} LENGTH={length} ADVICE={advice}");
-
-        self.fd.advise(offset, length, advice).await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::Advise(latch::DescriptorAdviseArgs {
+                offset,
+                length,
+                advice,
+            }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.advise FD={self} OFFSET={offset} LENGTH={length} ADVICE={advice}");
+                Err(reason)
+            }
+            _ => self.fd.advise(offset, length, advice).await,
+        }
     }
 
     #[doc = "/ Synchronize the data of a file to disk."]
@@ -153,9 +218,17 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     #[doc = "/ Note: This is similar to `fdatasync` in POSIX."]
     #[allow(async_fn_in_trait)]
     async fn sync_data(&self) -> Result<(), ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.sync-data FD={self}");
-
-        self.fd.sync_data().await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::SyncData,
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.sync-data FD={self}");
+                Err(reason)
+            }
+            _ => self.fd.sync_data().await,
+        }
     }
 
     #[doc = "/ Get flags associated with a descriptor."]
@@ -166,9 +239,17 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     #[doc = "/ from `fdstat_get` in earlier versions of WASI."]
     #[allow(async_fn_in_trait)]
     async fn get_flags(&self) -> Result<DescriptorFlags, ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.get-flags FD={self}");
-
-        self.fd.get_flags().await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::GetFlags,
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.get-flags FD={self}");
+                Err(reason)
+            }
+            _ => self.fd.get_flags().await,
+        }
     }
 
     #[doc = "/ Get the dynamic type of a descriptor."]
@@ -183,9 +264,17 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     #[doc = "/ from `fdstat_get` in earlier versions of WASI."]
     #[allow(async_fn_in_trait)]
     async fn get_type(&self) -> Result<DescriptorType, ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.get-type FD={self}");
-
-        self.fd.get_type().await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::GetType,
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.get-type FD={self}");
+                Err(reason)
+            }
+            _ => self.fd.get_type().await,
+        }
     }
 
     #[doc = "/ Adjust the size of an open file. If this increases the file\'s size, the"]
@@ -194,9 +283,17 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     #[doc = "/ Note: This was called `fd_filestat_set_size` in earlier versions of WASI."]
     #[allow(async_fn_in_trait)]
     async fn set_size(&self, size: Filesize) -> Result<(), ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.set-size FD={self} SIZE={size}");
-
-        self.fd.set_size(size).await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::SetSize(latch::DescriptorSetSizeArgs { size }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.set-size FD={self} SIZE={size}");
+                Err(reason)
+            }
+            _ => self.fd.set_size(size).await,
+        }
     }
 
     #[doc = "/ Adjust the timestamps of an open file or directory."]
@@ -210,11 +307,24 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
         data_access_timestamp: NewTimestamp,
         data_modification_timestamp: NewTimestamp,
     ) -> Result<(), ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.set-times FD={self} ACCESS-TIMESTAMP={data_access_timestamp} MODIFICATION-TIMESTAMP={data_modification_timestamp}");
-
-        self.fd
-            .set_times(data_access_timestamp, data_modification_timestamp)
-            .await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::SetTimes(latch::DescriptorSetTimesArgs {
+                data_access_timestamp,
+                data_modification_timestamp,
+            }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.set-times FD={self} ACCESS-TIME={data_access_timestamp:?} MODIFIED-TIME={data_modification_timestamp:?}");
+                Err(reason)
+            }
+            _ => {
+                self.fd
+                    .set_times(data_access_timestamp, data_modification_timestamp)
+                    .await
+            }
+        }
     }
 
     #[doc = "/ Read directory entries from a directory."]
@@ -236,9 +346,24 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
         wit_bindgen::StreamReader<DirectoryEntry>,
         wit_bindgen::FutureReader<Result<(), ErrorCode>>,
     ) {
-        trace!("CALL wasi:filesystem/types#descriptor.read-directory FD={self}");
-
-        self.fd.read_directory()
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::ReadDirectory,
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.read-directory FD={self}");
+                let (_, dir_reader) = wit_stream::new();
+                let (result_writer, result_reader) =
+                    wit_future::new(|| Err(ErrorCode::Other(None)));
+                result_writer.write(Err(reason));
+                (dir_reader, result_reader)
+            }
+            _ => {
+                // TODO authorize individual directory entries
+                self.fd.read_directory()
+            }
+        }
     }
 
     #[doc = "/ Synchronize the data and metadata of a file to disk."]
@@ -249,9 +374,17 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     #[doc = "/ Note: This is similar to `fsync` in POSIX."]
     #[allow(async_fn_in_trait)]
     async fn sync(&self) -> Result<(), ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.sync FD={self}");
-
-        self.fd.sync().await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::Sync,
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.sync FD={self}");
+                Err(reason)
+            }
+            _ => self.fd.sync().await,
+        }
     }
 
     #[doc = "/ Create a directory."]
@@ -259,9 +392,19 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     #[doc = "/ Note: This is similar to `mkdirat` in POSIX."]
     #[allow(async_fn_in_trait)]
     async fn create_directory_at(&self, path: String) -> Result<(), ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.create-directory-at FD={self} PATH={path}");
-
-        self.fd.create_directory_at(path).await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::CreateDirectoryAt(latch::DescriptorCreateDirectoryAtArgs {
+                path: path.clone(),
+            }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.create-directory-at FD={self} PATH={path}");
+                Err(reason)
+            }
+            _ => self.fd.create_directory_at(path).await,
+        }
     }
 
     #[doc = "/ Return the attributes of an open file or directory."]
@@ -275,9 +418,17 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     #[doc = "/ Note: This was called `fd_filestat_get` in earlier versions of WASI."]
     #[allow(async_fn_in_trait)]
     async fn stat(&self) -> Result<DescriptorStat, ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.stat FD={self}");
-
-        self.fd.stat().await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::Stat,
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.stat FD={self}");
+                Err(reason)
+            }
+            _ => self.fd.stat().await,
+        }
     }
 
     #[doc = "/ Return the attributes of a file or directory."]
@@ -293,9 +444,20 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
         path_flags: PathFlags,
         path: String,
     ) -> Result<DescriptorStat, ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.stat-at FD={self} PATH-FLAGS={path_flags} PATH={path}");
-
-        self.fd.stat_at(path_flags, path).await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::StatAt(latch::DescriptorStatAtArgs {
+                path_flags,
+                path: path.clone(),
+            }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.stat-at FD={self} PATH-FLAGS={path_flags} PATH={path}");
+                Err(reason)
+            }
+            _ => self.fd.stat_at(path_flags, path).await,
+        }
     }
 
     #[doc = "/ Adjust the timestamps of a file or directory."]
@@ -312,16 +474,31 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
         data_access_timestamp: NewTimestamp,
         data_modification_timestamp: NewTimestamp,
     ) -> Result<(), ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.set-times-at FD={self} PATH-FLAGS={path_flags} PATH={path} ACCESS-TIMESTAMP={data_access_timestamp} MODIFICATION-TIMESTAMP={data_modification_timestamp}");
-
-        self.fd
-            .set_times_at(
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::SetTimesAt(latch::DescriptorSetTimesAtArgs {
                 path_flags,
-                path,
+                path: path.clone(),
                 data_access_timestamp,
                 data_modification_timestamp,
-            )
-            .await
+            }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.set-times-at FD={self} PATH-FLAGS={path_flags} PATH={path} ACCESS-TIME={data_access_timestamp:?} MODIFIED-TIME={data_modification_timestamp:?}");
+                Err(reason)
+            }
+            _ => {
+                self.fd
+                    .set_times_at(
+                        path_flags,
+                        path,
+                        data_access_timestamp,
+                        data_modification_timestamp,
+                    )
+                    .await
+            }
+        }
     }
 
     #[doc = "/ Create a hard link."]
@@ -340,11 +517,28 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
         new_path: String,
     ) -> Result<(), ErrorCode> {
         let new_descriptor: &Self = new_descriptor.get();
-        trace!("CALL wasi:filesystem/types#descriptor.link-at FD={self} OLD-PATH-FLAGS={old_path_flags} OLD-PATH={old_path} NEW-DESCRIPTOR={new_descriptor} NEW-PATH={new_path}");
-
-        self.fd
-            .link_at(old_path_flags, old_path, &new_descriptor.fd, new_path)
-            .await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::LinkAt(latch::DescriptorLinkAtArgs {
+                old_path_flags,
+                old_path: old_path.clone(),
+                new_descriptor: &new_descriptor.fd,
+                new_path: new_path.clone(),
+            }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!(
+                    "Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.link-at FD={self} OLD-PATH={old_path} OLD-PATH-FLAGS={old_path_flags} NEW-PATH={new_path}",
+                );
+                Err(reason)
+            }
+            _ => {
+                self.fd
+                    .link_at(old_path_flags, old_path, &new_descriptor.fd, new_path)
+                    .await
+            }
+        }
     }
 
     #[doc = "/ Open a file or directory."]
@@ -367,15 +561,26 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
         open_flags: OpenFlags,
         flags: DescriptorFlags,
     ) -> Result<Descriptor, ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.open-at FD={self} PATH-FLAGS={path_flags} PATH={path} OPEN-FLAGS={open_flags} FLAGS={flags}");
-
-        self.fd
-            .open_at(path_flags, path.clone(), open_flags, flags)
-            .await
-            .map(|fd| {
-                let path = self.path.clone().join(path);
-                Descriptor::new(TracingDescriptor::new(fd, path))
-            })
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::OpenAt(latch::DescriptorOpenAtArgs {
+                path_flags,
+                path: path.clone(),
+                open_flags,
+                flags,
+            }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.open-at FD={self} PATH-FLAGS={path_flags} PATH={path} OPEN-FLAGS={open_flags} FLAGS={flags}");
+                Err(reason)
+            }
+            _ => self
+                .fd
+                .open_at(path_flags, path.clone(), open_flags, flags)
+                .await
+                .map(|fd| Descriptor::new(GatedFileDescriptor::new(fd, self.path.join(path)))),
+        }
     }
 
     #[doc = "/ Read the contents of a symbolic link."]
@@ -386,9 +591,19 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     #[doc = "/ Note: This is similar to `readlinkat` in POSIX."]
     #[allow(async_fn_in_trait)]
     async fn readlink_at(&self, path: String) -> Result<String, ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.readlink-at FD={self} PATH={path}");
-
-        self.fd.readlink_at(path).await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::ReadlinkAt(latch::DescriptorReadlinkAtArgs { path: path.clone() }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!(
+                    "Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.readlink-at FD={self} PATH={path}",
+                );
+                Err(reason)
+            }
+            _ => self.fd.readlink_at(path).await,
+        }
     }
 
     #[doc = "/ Remove a directory."]
@@ -398,9 +613,19 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     #[doc = "/ Note: This is similar to `unlinkat(fd, path, AT_REMOVEDIR)` in POSIX."]
     #[allow(async_fn_in_trait)]
     async fn remove_directory_at(&self, path: String) -> Result<(), ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.remove-directory-at FD={self} PATH={path}");
-
-        self.fd.remove_directory_at(path).await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::RemoveDirectoryAt(latch::DescriptorRemoveDirectoryAtArgs {
+                path: path.clone(),
+            }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.remove-directory-at FD={self} PATH={path}");
+                Err(reason)
+            }
+            _ => self.fd.remove_directory_at(path).await,
+        }
     }
 
     #[doc = "/ Rename a filesystem object."]
@@ -413,12 +638,28 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
         new_descriptor: DescriptorBorrow<'_>,
         new_path: String,
     ) -> Result<(), ErrorCode> {
-        let new_descriptor: &Self = new_descriptor.get();
-        trace!("CALL wasi:filesystem/types#descriptor.rename-at FD={self} OLD-PATH={old_path} NEW-DESCRIPTOR={new_descriptor} NEW-PATH={new_path}");
-
-        self.fd
-            .rename_at(old_path, &new_descriptor.fd, new_path)
-            .await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::RenameAt(latch::DescriptorRenameAtArgs {
+                old_path: old_path.clone(),
+                new_descriptor: &new_descriptor.get::<Self>().fd,
+                new_path: new_path.clone(),
+            }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!(
+                    "Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.rename-at FD={self} OLD-PATH={old_path} NEW-PATH={new_path}",
+                );
+                Err(reason)
+            }
+            _ => {
+                let new_descriptor: &Self = new_descriptor.get();
+                self.fd
+                    .rename_at(old_path, &new_descriptor.fd, new_path)
+                    .await
+            }
+        }
     }
 
     #[doc = "/ Create a symbolic link (also known as a \"symlink\")."]
@@ -429,9 +670,22 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     #[doc = "/ Note: This is similar to `symlinkat` in POSIX."]
     #[allow(async_fn_in_trait)]
     async fn symlink_at(&self, old_path: String, new_path: String) -> Result<(), ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.symlink-at FD={self} OLD-PATH={old_path} NEW-PATH={new_path}");
-
-        self.fd.symlink_at(old_path, new_path).await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::SymlinkAt(latch::DescriptorSymlinkAtArgs {
+                old_path: old_path.clone(),
+                new_path: new_path.clone(),
+            }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!(
+                    "Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.symlink-at FD={self} OLD-PATH={old_path} NEW-PATH={new_path}",
+                );
+                Err(reason)
+            }
+            _ => self.fd.symlink_at(old_path, new_path).await,
+        }
     }
 
     #[doc = "/ Unlink a filesystem object that is not a directory."]
@@ -445,9 +699,21 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     #[doc = "/ POSIX-specified `error-code::not-permitted`."]
     #[allow(async_fn_in_trait)]
     async fn unlink_file_at(&self, path: String) -> Result<(), ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.unlink-file-at FD={self} PATH={path}");
-
-        self.fd.unlink_file_at(path).await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::UnlinkFileAt(latch::DescriptorUnlinkFileAtArgs {
+                path: path.clone(),
+            }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!(
+                    "Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.unlink-file-at FD={self} PATH={path}",
+                );
+                Err(reason)
+            }
+            _ => self.fd.unlink_file_at(path).await,
+        }
     }
 
     #[doc = "/ Test whether two descriptors refer to the same filesystem object."]
@@ -459,8 +725,6 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     #[allow(async_fn_in_trait)]
     async fn is_same_object(&self, other: DescriptorBorrow<'_>) -> bool {
         let other: &Self = other.get();
-        trace!("CALL wasi:filesystem/types#descriptor.is-same-object FD={self} OTHER={other}");
-
         self.fd.is_same_object(&other.fd).await
     }
 
@@ -485,9 +749,17 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     #[doc = "/ However, none of these is required."]
     #[allow(async_fn_in_trait)]
     async fn metadata_hash(&self) -> Result<MetadataHashValue, ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.metadata-hash FD={self}");
-
-        self.fd.metadata_hash().await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::MetadataHash,
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.metadata-hash FD={self}");
+                Err(reason)
+            }
+            _ => self.fd.metadata_hash().await,
+        }
     }
 
     #[doc = "/ Return a hash of the metadata associated with a filesystem object referred"]
@@ -500,13 +772,24 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
         path_flags: PathFlags,
         path: String,
     ) -> Result<MetadataHashValue, ErrorCode> {
-        trace!("CALL wasi:filesystem/types#descriptor.metadata-hash-at FD={self} PATH-FLAGS={path_flags} PATH={path}");
-
-        self.fd.metadata_hash_at(path_flags, path).await
+        match authorize(&Operation::Descriptor((
+            &self.fd,
+            self.path.to_string_lossy().into_owned(),
+            DescriptorOperation::MetadataHashAt(latch::DescriptorMetadataHashAtArgs {
+                path_flags,
+                path: path.clone(),
+            }),
+        ))) {
+            Some(Denied(reason)) => {
+                warn!("Denied REASON={reason} OPERATION=wasi:filesystem/types#descriptor.metadata-hash-at FD={self} PATH={path} PATH-FLAGS={path_flags}");
+                Err(reason)
+            }
+            _ => self.fd.metadata_hash_at(path_flags, path).await,
+        }
     }
 }
 
-impl Display for TracingDescriptor {
+impl Display for GatedFileDescriptor {
     fn fmt(&self, d: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         d.write_fmt(format_args!("{}", self.path.display()))
     }
@@ -570,6 +853,17 @@ impl Display for types::Instant {
     }
 }
 
+impl Display for types::DescriptorType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            types::DescriptorType::Other(Some(type_)) => {
+                f.write_fmt(format_args!("other<{type_}>"))
+            }
+            _ => f.write_str(&self.to_string().to_kebab_case()),
+        }
+    }
+}
+
 wit_bindgen::generate!({
     path: "../../wit",
     world: "filesystem",
@@ -577,4 +871,4 @@ wit_bindgen::generate!({
     generate_all
 });
 
-export!(FilesystemTracing);
+export!(GatedFilesystem);

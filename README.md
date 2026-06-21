@@ -15,7 +15,15 @@ A collection of utility components that remix wasi:filesystem types and interfac
 ## Components
 
 - [`chroot`](./components/chroot/)
-- [`readonly`](./components/readonly/)
+- [`gate`](./components/gate/)
+- [`latch-n2`](./components/latch-n2/)
+- [`latch-n3`](./components/latch-n3/)
+- [`latch-n4`](./components/latch-n4/)
+- [`latch-deny-all`](./components/latch-deny-all/)
+- [`latch-grant-all`](./components/latch-grant-all/)
+- [`latch-glob`](./components/latch-glob/)
+- [`latch-readonly`](./components/latch-readonly/)
+- ~~[`readonly`](./components/readonly/)~~ (deprecated, favor gate with readonly latch)
 - [`tracing`](./components/tracing/)
 
 ## Build
@@ -25,6 +33,7 @@ A [dev container](https://containers.dev) is available that contains the necessa
 Prereqs:
 - a rust toolchain
 - [`wasm-tools`](https://github.com/bytecodealliance/wasm-tools)
+- [`wac`](https://github.com/bytecodealliance/wac)
 - [`wkg`](https://github.com/bytecodealliance/wasm-pkg-tools)
 
 ```sh

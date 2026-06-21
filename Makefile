@@ -4,6 +4,7 @@ export RUST_BACKTRACE ?= 1
 export WASMTIME_BACKTRACE_DETAILS ?= 1
 
 COMPONENTS = $(shell ls -1 components)
+TEST_COMPONENTS = $(shell ls -1 tests)
 
 .PHONY: all
 all: components
@@ -13,9 +14,11 @@ clean:
 	cargo clean
 	rm -rf lib/*.wasm
 	rm -rf lib/*.wasm.md
+	rm -rf lib/tests/*.wasm
+	rm -rf lib/tests/*.wasm.md
 
 .PHONY: components
-components: $(foreach component,$(COMPONENTS),lib/$(component).wasm $(foreach component,$(COMPONENTS),lib/$(component).debug.wasm))
+components: $(foreach component,$(COMPONENTS),lib/$(component).wasm) $(foreach component,$(COMPONENTS),lib/$(component).debug.wasm)
 
 define BUILD_COMPONENT
 
@@ -36,6 +39,64 @@ endef
 
 $(foreach component,$(COMPONENTS),$(eval $(call BUILD_COMPONENT,$(component))))
 
+define TEST_COMPONENT
+
+lib/tests/$1.wasm: Cargo.toml Cargo.lock wit/deps $(shell find tests/$1 -type f)
+	cargo component build -p $1 --target wasm32-wasip2 --release
+	cp target/wasm32-wasip2/release/$1.wasm lib/tests/$1.wasm
+
+lib/tests/$1.debug.wasm: Cargo.toml Cargo.lock wit/deps $(shell find tests/$1 -type f)
+	cargo component build -p $1 --target wasm32-wasip2
+	cp target/wasm32-wasip2/debug/$1.wasm lib/tests/$1.debug.wasm
+
+endef
+
+$(foreach component,$(TEST_COMPONENTS),$(eval $(call TEST_COMPONENT,$(component))))
+
+lib/tests/logging-to-stdout.wasm:
+	wkg oci pull ghcr.io/componentized/logging/to-stdout:v0.2.1 -o "lib/tests/logging-to-stdout.wasm"
+
+lib/tests/grant.wasm: lib/gate.wasm lib/latch-grant-all.wasm
+	wac plug lib/gate.wasm \
+		--plug lib/latch-grant-all.wasm \
+		-o lib/tests/grant.wasm
+
+lib/tests/filesystem-cli-grant.wasm: lib/tests/filesystem-cli.wasm lib/tests/grant.wasm lib/tests/logging-to-stdout.wasm
+	wac plug lib/tests/filesystem-cli.wasm \
+		--plug <( \
+			wac plug lib/tests/grant.wasm \
+				--plug lib/tests/logging-to-stdout.wasm \
+		) \
+		-o lib/tests/filesystem-cli-grant.wasm
+
+lib/tests/deny.wasm: lib/gate.wasm lib/latch-deny-all.wasm
+	wac plug lib/gate.wasm \
+		--plug lib/latch-deny-all.wasm \
+		-o lib/tests/deny.wasm
+
+lib/tests/filesystem-cli-deny.wasm: lib/tests/filesystem-cli.wasm lib/tests/deny.wasm lib/tests/logging-to-stdout.wasm
+	wac plug lib/tests/filesystem-cli.wasm \
+		--plug <( \
+			wac plug lib/tests/deny.wasm \
+				--plug lib/tests/logging-to-stdout.wasm \
+		) \
+		-o lib/tests/filesystem-cli-deny.wasm
+
+lib/tests/readonly.wasm: lib/gate.wasm lib/latch-n2.wasm lib/latch-readonly.wasm lib/latch-grant-all.wasm
+	wac plug lib/gate.wasm \
+		--plug lib/latch-readonly.wasm \
+		-o lib/tests/readonly.wasm
+
+lib/tests/filesystem-cli-readonly.wasm: lib/tests/filesystem-cli.wasm lib/tests/readonly.wasm lib/tests/logging-to-stdout.wasm
+	wac plug lib/tests/filesystem-cli.wasm \
+		--plug <( \
+			wac plug lib/tests/readonly.wasm \
+				--plug lib/tests/logging-to-stdout.wasm \
+		) \
+		-o lib/tests/filesystem-cli-readonly.wasm
+
+.PHONY: tests
+tests: $(foreach component,$(TEST_COMPONENTS),lib/tests/$(component).wasm) lib/tests/filesystem-cli-grant.wasm lib/tests/filesystem-cli-deny.wasm lib/tests/filesystem-cli-readonly.wasm
 
 .PHONY: wit
 wit: wit/deps
