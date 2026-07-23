@@ -7,4 +7,4 @@ members = [
 [workspace.dependencies]
 chrono = { git = "https://github.com/chronotope/chrono.git", branch = "0.5.x" }
 heck = "0.5"
-wit-bindgen = "0.59.0"
+wit-bindgen = "0.60.0"
