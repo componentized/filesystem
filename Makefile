@@ -58,7 +58,7 @@ endif
 	@$(eval COMPONENT := $(FILE:%.wasm=%))
 	@$(eval DESCRIPTION := $(shell head -n 3 "lib/${FILE}.md" | tail -n 1))
 	@$(eval REVISION := $(shell git rev-parse HEAD)$(shell git diff --quiet HEAD && echo "+dirty"))
-	@$(eval TAG := $(shell echo "${VERSION#v}" | tr '+' '_'))
+	@$(eval TAG := $(patsubst v%,%,$(subst +,_,$(VERSION))))
 
 	@echo "::group::${FILE} -> ${REPOSITORY}/${COMPONENT}:${TAG}"
 	@DIGEST=$$( \
