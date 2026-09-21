@@ -576,7 +576,7 @@ impl Display for types::Instant {
 }
 
 wit_bindgen::generate!({
-    path: "../../wit",
+    path: "../wit",
     world: "filesystem",
     merge_structurally_equal_types: true,
     generate_all

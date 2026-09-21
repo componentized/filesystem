@@ -1,0 +1,10 @@
+package componentized:filesystem-components;
+
+world filesystem {
+    import wasi:config/store@0.2.0-rc.1;
+    import wasi:logging/logging@0.1.0-draft;
+    import wasi:filesystem/preopens@0.3.0;
+    export wasi:filesystem/preopens@0.3.0;
+    import wasi:filesystem/types@0.3.0;
+    export wasi:filesystem/types@0.3.0;
+}
