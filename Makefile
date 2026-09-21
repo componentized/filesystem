@@ -3,7 +3,7 @@ SHELL := /bin/bash
 export RUST_BACKTRACE ?= 1
 export WASMTIME_BACKTRACE_DETAILS ?= 1
 
-COMPONENTS = $(shell ls -1 components)
+COMPONENTS = $(sort $(notdir $(patsubst %/,%,$(dir $(wildcard  components/*/Cargo.toml)))))
 
 .PHONY: all
 all: components
@@ -14,20 +14,24 @@ clean:
 	rm -rf lib/*.wasm
 	rm -rf lib/*.wasm.md
 
+.PHONY: test
+test:
+	@echo "TODO add tests"
+
 .PHONY: components
-components: $(foreach component,$(COMPONENTS),lib/$(component).wasm $(foreach component,$(COMPONENTS),lib/$(component).debug.wasm))
+components: lib/interface.wasm $(foreach component,$(COMPONENTS),lib/$(component).wasm lib/$(component).debug.wasm)
 
 define BUILD_COMPONENT
 
 .PHONY: components/$1
 components/$1: lib/$1.wasm lib/$1.debug.wasm
 
-lib/$1.wasm: Cargo.toml Cargo.lock wit/deps $(shell find components/$1 -type f)
+lib/$1.wasm: Cargo.toml Cargo.lock components/wit/deps $(shell find components/$1 -type f)
 	cargo build -p $1 --target wasm32-unknown-unknown --release
 	wasm-tools component new target/wasm32-unknown-unknown/release/$(subst -,_,$1).wasm -o lib/$1.wasm
 	cp components/$1/README.md lib/$1.wasm.md
 
-lib/$1.debug.wasm: Cargo.toml Cargo.lock wit/deps $(shell find components/$1 -type f)
+lib/$1.debug.wasm: Cargo.toml Cargo.lock components/wit/deps $(shell find components/$1 -type f)
 	cargo build -p $1 --target wasm32-unknown-unknown
 	wasm-tools component new target/wasm32-unknown-unknown/debug/$(subst -,_,$1).wasm -o lib/$1.debug.wasm
 	cp components/$1/README.md lib/$1.debug.wasm.md
@@ -36,15 +40,21 @@ endef
 
 $(foreach component,$(COMPONENTS),$(eval $(call BUILD_COMPONENT,$(component))))
 
+lib/interface.wasm: wit/deps README.md
+	wkg build -o lib/interface.wasm
+	cp README.md lib/interface.wasm.md
 
 .PHONY: wit
-wit: wit/deps
+wit: wit/deps components/wit/deps
 
 wit/deps: wkg.toml $(shell find wit -type f -name "*.wit" -not -path "deps")
-	wkg wit fetch
+	wkg fetch
 
-.PHONY: publish
-publish: $(shell find lib -type f -name "*.wasm" -maxdepth 1 | sed -e 's:^lib/:publish-:g')
+components/wit/deps: wit/deps components/wkg.toml $(shell find components/wit -type f -name "*.wit" -not -path "deps")
+	( cd components && wkg fetch )
+
+.PHONY: publish ## Publish each component in the lib directory
+publish: $(shell find lib -maxdepth 1 -type f -name "*.wasm" | sed -e 's:^lib/:publish-:g')
 
 .PHONY: publish-%
 publish-%:
@@ -55,25 +65,28 @@ ifndef REPOSITORY
 	$(error REPOSITORY is undefined)
 endif
 	@$(eval FILE := $(@:publish-%=%))
-	@$(eval COMPONENT := $(FILE:%.wasm=%))
+	@$(eval COMPONENT := $(if $(filter %.debug.wasm,$(FILE)),$(FILE:%.debug.wasm=%),$(FILE:%.wasm=%)))
+	@$(eval TITLE := $(if $(filter %.debug.wasm,$(FILE)),$(COMPONENT) (debug),$(COMPONENT)))
 	@$(eval DESCRIPTION := $(shell head -n 3 "lib/${FILE}.md" | tail -n 1))
 	@$(eval REVISION := $(shell git rev-parse HEAD)$(shell git diff --quiet HEAD && echo "+dirty"))
-	@$(eval TAG := $(patsubst v%,%,$(subst +,_,$(VERSION))))
+	@$(eval COMPONENT_VERSION := $(if $(filter %.debug.wasm,$(FILE)),${VERSION}+debug,${VERSION}))
+	@$(eval TAG := $(patsubst v%,%,$(subst +,_,$(COMPONENT_VERSION))))
+	@$(eval IMAGE := $(if $(filter interface.wasm,$(FILE)),${REPOSITORY}:${TAG},${REPOSITORY}/${COMPONENT}:${TAG}))
 
-	@echo "::group::${FILE} -> ${REPOSITORY}/${COMPONENT}:${TAG}"
+	@echo "::group::${FILE} -> ${IMAGE}"
 	@DIGEST=$$( \
 		wkg oci push \
-			--annotation "org.opencontainers.image.title=${COMPONENT}" \
+			--annotation "org.opencontainers.image.title=${TITLE}" \
 			--annotation "org.opencontainers.image.description=${DESCRIPTION}" \
-			--annotation "org.opencontainers.image.version=${VERSION}" \
+			--annotation "org.opencontainers.image.version=${COMPONENT_VERSION}" \
 			--annotation "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}.git" \
 			--annotation "org.opencontainers.image.revision=${REVISION}" \
 			--annotation "org.opencontainers.image.licenses=Apache-2.0" \
-			"${REPOSITORY}/${COMPONENT}:${TAG}" \
+			"${IMAGE}" \
 			"lib/${FILE}" \
 			2>&1 \
 			| tee /dev/stderr \
 			| grep -o 'sha256:[a-f0-9]\{64\}' \
 	) ; \
-	cosign sign --yes "${REPOSITORY}/${COMPONENT}:${TAG}@$${DIGEST}"
+	cosign sign --yes "${IMAGE}@$${DIGEST}"
 	@echo "::endgroup::"

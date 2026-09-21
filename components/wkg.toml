@@ -1,0 +1,2 @@
+[overrides]
+"componentized:filesystem" = { path = "../wit" }

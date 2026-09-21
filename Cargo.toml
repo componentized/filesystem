@@ -3,6 +3,9 @@ resolver = "2"
 members = [
     "components/*",
 ]
+exclude = [
+    "components/wit",
+]
 
 [workspace.dependencies]
 chrono = { git = "https://github.com/chronotope/chrono.git", branch = "0.5.x" }
