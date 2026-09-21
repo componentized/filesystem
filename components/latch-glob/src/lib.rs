@@ -4,11 +4,9 @@ use std::path::Path;
 
 use path_matchers::{glob, PathMatcher};
 
-use crate::{
-    exports::componentized::filesystem::latch::{
-        Decision, DescriptorOperation, Guest as Latch, Operation, PreopensOperation,
-    },
-    wasi::filesystem::types::ErrorCode,
+use crate::exports::componentized::filesystem::latch::{
+    Decision, DescriptorOperation, ErrorCode, FilesystemErrorCode, Guest as Latch, Operation,
+    PreopensOperation,
 };
 
 struct GlobLatch {}
@@ -16,8 +14,7 @@ struct GlobLatch {}
 struct Patterns {
     initialized: bool,
     denies: Option<Vec<Box<dyn PathMatcher>>>,
-    grants: Option<Vec<Box<dyn PathMatcher>>>,
-    deny_reason: ErrorCode,
+    deny_reason: FilesystemErrorCode,
 }
 
 impl Patterns {
@@ -27,16 +24,11 @@ impl Patterns {
         }
 
         let mut denies: Vec<Box<dyn PathMatcher>> = vec![];
-        let mut grants: Vec<Box<dyn PathMatcher>> = vec![];
-        let mut reason = ErrorCode::NotPermitted;
+        let mut reason = FilesystemErrorCode::NotPermitted;
 
         for (key, value) in wasi::config::store::get_all().expect("config must be available") {
             if key.starts_with("deny") {
                 denies.push(Box::new(
-                    glob(&value).expect("config value must parse as a glob"),
-                ));
-            } else if key.starts_with("grant") {
-                grants.push(Box::new(
                     glob(&value).expect("config value must parse as a glob"),
                 ));
             } else if key == "reason" {
@@ -46,55 +38,47 @@ impl Patterns {
 
         unsafe {
             STATE.denies = Some(denies);
-            STATE.grants = Some(grants);
             STATE.deny_reason = reason;
             STATE.initialized = true;
         };
     }
 
     #[allow(static_mut_refs)]
-    fn authorize(path: String, paths: Vec<String>) -> Option<Decision> {
+    fn authorize(path: String, paths: Vec<String>) -> Result<Decision, ErrorCode> {
         if paths.len() == 0 {
             let path = Path::new(&path);
             return unsafe { STATE.authorize_path(path) };
         }
-        let mut decision = None;
+        let mut decision = Decision::Abstained;
         for p in paths {
             let path = Path::new(&path).join(p);
-            match unsafe { STATE.authorize_path(&path) } {
+            match unsafe { STATE.authorize_path(&path)? } {
                 // return denies immediately, buffer grants
-                Some(Decision::Denied(reason)) => return Some(Decision::Denied(reason)),
-                Some(Decision::Granted) => decision = Some(Decision::Granted),
-                None => {}
+                Decision::Denied(reason) => return Ok(Decision::Denied(reason)),
+                Decision::Abstained => {}
             }
         }
-        decision
+        Ok(decision)
     }
 
-    fn authorize_path(&self, path: &Path) -> Option<Decision> {
+    fn authorize_path(&self, path: &Path) -> Result<Decision, ErrorCode> {
         for deny in self.denies.as_ref().unwrap() {
             if deny.matches(path) {
-                return Some(Decision::Denied(self.deny_reason.clone()));
+                return Ok(Decision::Denied(self.deny_reason.clone()));
             }
         }
-        for grant in self.grants.as_ref().unwrap() {
-            if grant.matches(path) {
-                return Some(Decision::Granted);
-            }
-        }
-        None
+        Ok(Decision::Abstained)
     }
 }
 
 static mut STATE: Patterns = Patterns {
     initialized: false,
     denies: None,
-    grants: None,
-    deny_reason: ErrorCode::NotPermitted,
+    deny_reason: FilesystemErrorCode::NotPermitted,
 };
 
 impl Latch for GlobLatch {
-    fn authorize(operation: Operation) -> Option<Decision> {
+    fn authorize(operation: Operation) -> Result<Decision, ErrorCode> {
         Patterns::initialize();
 
         match operation {
@@ -147,46 +131,46 @@ impl Latch for GlobLatch {
     }
 }
 
-fn get_error_code(value: String) -> ErrorCode {
+fn get_error_code(value: String) -> FilesystemErrorCode {
     match value.as_str() {
-        "access" => ErrorCode::Access,
-        "already" => ErrorCode::Already,
-        "bad-descriptor" => ErrorCode::BadDescriptor,
-        "busy" => ErrorCode::Busy,
-        "deadlock" => ErrorCode::Deadlock,
-        "quota" => ErrorCode::Quota,
-        "exist" => ErrorCode::Exist,
-        "file-too-large" => ErrorCode::FileTooLarge,
-        "illegal-byte-sequence" => ErrorCode::IllegalByteSequence,
-        "in-progress" => ErrorCode::InProgress,
-        "interrupted" => ErrorCode::Interrupted,
-        "invalid" => ErrorCode::Invalid,
-        "io" => ErrorCode::Io,
-        "is-directory" => ErrorCode::IsDirectory,
-        "loop" => ErrorCode::Loop,
-        "too-many-links" => ErrorCode::TooManyLinks,
-        "message-size" => ErrorCode::MessageSize,
-        "name-too-long" => ErrorCode::NameTooLong,
-        "no-device" => ErrorCode::NoDevice,
-        "no-entry" => ErrorCode::NoEntry,
-        "no-lock" => ErrorCode::NoLock,
-        "insufficient-memory" => ErrorCode::InsufficientMemory,
-        "insufficient-space" => ErrorCode::InsufficientSpace,
-        "not-directory" => ErrorCode::NotDirectory,
-        "not-empty" => ErrorCode::NotEmpty,
-        "not-recoverable" => ErrorCode::NotRecoverable,
-        "unsupported" => ErrorCode::Unsupported,
-        "no-tty" => ErrorCode::NoTty,
-        "no-such-device" => ErrorCode::NoSuchDevice,
-        "overflow" => ErrorCode::Overflow,
-        "not-permitted" => ErrorCode::NotPermitted,
-        "pipe" => ErrorCode::Pipe,
-        "read-only" => ErrorCode::ReadOnly,
-        "invalid-seek" => ErrorCode::InvalidSeek,
-        "text-file-busy" => ErrorCode::TextFileBusy,
-        "cross-device" => ErrorCode::CrossDevice,
-        "other" => ErrorCode::Other(None),
-        _ => ErrorCode::Other(Some(value)),
+        "access" => FilesystemErrorCode::Access,
+        "already" => FilesystemErrorCode::Already,
+        "bad-descriptor" => FilesystemErrorCode::BadDescriptor,
+        "busy" => FilesystemErrorCode::Busy,
+        "deadlock" => FilesystemErrorCode::Deadlock,
+        "quota" => FilesystemErrorCode::Quota,
+        "exist" => FilesystemErrorCode::Exist,
+        "file-too-large" => FilesystemErrorCode::FileTooLarge,
+        "illegal-byte-sequence" => FilesystemErrorCode::IllegalByteSequence,
+        "in-progress" => FilesystemErrorCode::InProgress,
+        "interrupted" => FilesystemErrorCode::Interrupted,
+        "invalid" => FilesystemErrorCode::Invalid,
+        "io" => FilesystemErrorCode::Io,
+        "is-directory" => FilesystemErrorCode::IsDirectory,
+        "loop" => FilesystemErrorCode::Loop,
+        "too-many-links" => FilesystemErrorCode::TooManyLinks,
+        "message-size" => FilesystemErrorCode::MessageSize,
+        "name-too-long" => FilesystemErrorCode::NameTooLong,
+        "no-device" => FilesystemErrorCode::NoDevice,
+        "no-entry" => FilesystemErrorCode::NoEntry,
+        "no-lock" => FilesystemErrorCode::NoLock,
+        "insufficient-memory" => FilesystemErrorCode::InsufficientMemory,
+        "insufficient-space" => FilesystemErrorCode::InsufficientSpace,
+        "not-directory" => FilesystemErrorCode::NotDirectory,
+        "not-empty" => FilesystemErrorCode::NotEmpty,
+        "not-recoverable" => FilesystemErrorCode::NotRecoverable,
+        "unsupported" => FilesystemErrorCode::Unsupported,
+        "no-tty" => FilesystemErrorCode::NoTty,
+        "no-such-device" => FilesystemErrorCode::NoSuchDevice,
+        "overflow" => FilesystemErrorCode::Overflow,
+        "not-permitted" => FilesystemErrorCode::NotPermitted,
+        "pipe" => FilesystemErrorCode::Pipe,
+        "read-only" => FilesystemErrorCode::ReadOnly,
+        "invalid-seek" => FilesystemErrorCode::InvalidSeek,
+        "text-file-busy" => FilesystemErrorCode::TextFileBusy,
+        "cross-device" => FilesystemErrorCode::CrossDevice,
+        "other" => FilesystemErrorCode::Other(None),
+        _ => FilesystemErrorCode::Other(Some(value)),
     }
 }
 

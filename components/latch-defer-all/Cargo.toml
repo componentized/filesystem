@@ -1,5 +1,9 @@
 [package]
+<<<<<<<< HEAD:components/latch-defer-all/Cargo.toml
 name = "latch-defer-all"
+========
+name = "latch-abstain-all"
+>>>>>>>> 23bdc66 (wip):components/latch-abstain-all/Cargo.toml
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"

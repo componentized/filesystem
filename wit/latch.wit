@@ -1,6 +1,10 @@
 
 interface latch {
+    <<<<<<< HEAD
     use wasi:filesystem/types@0.3.0.{advice, descriptor, descriptor-flags, directory-entry, error-code as filesystem-error-code, filesize, open-flags, new-timestamp, path-flags};
+    =======
+    use wasi:filesystem/types@0.3.0.{advice, descriptor, descriptor-flags, error-code as filesystem-error-code, filesize, open-flags, new-timestamp, path-flags};
+    >>>>>>> 23bdc66 (wip)
 
     record descriptor-get-directory-args {
         path: string,
