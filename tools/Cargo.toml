@@ -1,0 +1,28 @@
+# The versions of the cli tools the build uses, installed by `make tools` with cargo binstall.
+#
+# This package is never built, it lists the tools as dependencies so dependabot bumps them. Each
+# tool is pinned to an exact version with `=`, the Makefile installs that version.
+[package]
+name = "tools"
+version = "0.0.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+path = "lib.rs"
+
+# the binaries each tool installs, the Makefile runs each by path from a variable named after it,
+# e.g. `$(WASM_TOOLS)` for `wasm-tools`
+[package.metadata.bins]
+wac-cli = ["wac"]
+wasm-tools = ["wasm-tools"]
+wkg = ["wkg"]
+
+[dependencies]
+wac-cli = "=0.12.0"
+wasm-tools = "=1.261.0"
+wkg = "=0.16.1"
+
+# not a member of the repository's workspace
+[workspace]

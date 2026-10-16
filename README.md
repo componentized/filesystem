@@ -24,12 +24,15 @@ A [dev container](https://containers.dev) is available that contains the necessa
 
 Prereqs:
 - a rust toolchain
-- [`wasm-tools`](https://github.com/bytecodealliance/wasm-tools)
-- [`wkg`](https://github.com/bytecodealliance/wasm-pkg-tools)
+- [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall), optional, to download prebuilt tools instead of building them
 
 ```sh
 make components
 ```
+
+The build creates each component in [`components`](./components) into `target/components`, e.g. the readonly component at `target/components/readonly/readonly.wasm`, along with `target/components/interface.wasm`, the `componentized:filesystem` WIT package. Each component is also built with debug info, e.g. `target/components/readonly/readonly.debug.wasm`.
+
+The cli tools the build uses, [`wac`](https://github.com/bytecodealliance/wac), [`wasm-tools`](https://github.com/bytecodealliance/wasm-tools) and [`wkg`](https://github.com/bytecodealliance/wasm-pkg-tools), are pinned in [`tools/Cargo.toml`](./tools/Cargo.toml) and installed into `target/tools/<platform>`, e.g. `target/tools/aarch64-apple-darwin`, as needed, or ahead of time with `make tools`. Dependabot bumps the pinned versions.
 
 ## Community
 

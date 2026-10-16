@@ -1,5 +1,3 @@
-#![no_main]
-
 use std::fmt::Display;
 use std::path::PathBuf;
 
