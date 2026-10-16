@@ -1,5 +1,3 @@
-#![no_main]
-
 use std::path::{Component, Path, PathBuf};
 
 use exports::wasi::filesystem::preopens::Guest as Preopens;
