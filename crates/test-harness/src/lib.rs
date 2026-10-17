@@ -51,7 +51,7 @@ pub use wasmtime_wasi::FsPerms as Perms;
 
 /// Receive the items written to a guest stream on a channel.
 ///
-/// Only for streams the guest writes itself, see [`resolve`].
+/// Only for streams the guest writes itself, or byte streams, see [`resolve`].
 pub fn collect<T: Lift + Send + Sync + 'static>(
     accessor: &Accessor<Ctx>,
     stream: StreamReader<T>,
@@ -61,11 +61,21 @@ pub fn collect<T: Lift + Send + Sync + 'static>(
     Ok(rx)
 }
 
+/// Create a stream for the guest that yields the items, then closes.
+pub fn stream<T: wasmtime::component::Lower + Lift + Unpin + Send + Sync + 'static>(
+    accessor: &Accessor<Ctx>,
+    items: Vec<T>,
+) -> Result<StreamReader<T>> {
+    accessor.with(|store| StreamReader::new(store, items))
+}
+
 /// Wait for the value of a guest future.
 ///
 /// Only for futures the guest writes itself. A future the guest passes through from a wasmtime-wasi
 /// host import is transferred host to host, which requires the same Rust type on both ends, and
-/// the harness' exported types are generated separately from wasmtime-wasi's.
+/// the harness' exported types are generated separately from wasmtime-wasi's. Bindgen's `with`
+/// doesn't apply to exports, and wasmtime won't convert a host stream or future to another Rust
+/// type. A byte stream has the same Rust type on both ends.
 pub async fn resolve<T: Lift + Send + Sync + 'static>(
     accessor: &Accessor<Ctx>,
     future: FutureReader<T>,
