@@ -16,7 +16,7 @@ A collection of utility components that remix wasi:filesystem types and interfac
 
 - [`chroot`](./components/chroot/)
 - [`readonly`](./components/readonly/)
-- [`tracing`](./components/tracing/)
+- [`trace`](./components/trace/)
 
 ## Build
 
