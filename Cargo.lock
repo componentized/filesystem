@@ -1595,11 +1595,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06bdbd8cfc056b8d2e2e85f29b56a3bdbecb527cef81eb39e3e7b98af4652770"
 
 [[package]]
-name = "tracing"
+name = "trace"
 version = "0.1.0"
 dependencies = [
  "chrono",
  "heck",
+ "tempfile",
+ "test-harness",
+ "tokio",
+ "wasmtime",
  "wit-bindgen",
 ]
 
@@ -2108,7 +2112,7 @@ dependencies = [
  "rustix-linux-procfs",
  "thiserror 2.0.21",
  "tokio",
- "tracing 0.1.44",
+ "tracing",
  "url",
  "wasmtime",
  "wasmtime-wasi-io",
@@ -2126,7 +2130,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures",
- "tracing 0.1.44",
+ "tracing",
  "wasmtime",
 ]
 
@@ -2169,7 +2173,7 @@ checksum = "ad3dcdc2980b91d0e7db6975caee4f553c6e37fd8e1464a38b09baceed3fe568"
 dependencies = [
  "bitflags",
  "thiserror 2.0.21",
- "tracing 0.1.44",
+ "tracing",
  "wasmtime",
  "wasmtime-environ",
  "wiggle-macro",

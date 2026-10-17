@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "components/chroot",
     "components/readonly",
-    "components/tracing",
+    "components/trace",
     "crates/test-harness",
 ]
 

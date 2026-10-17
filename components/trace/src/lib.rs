@@ -1,5 +1,4 @@
 use std::fmt::Display;
-use std::path::PathBuf;
 
 use chrono::DateTime;
 use heck::ToKebabCase;
@@ -13,6 +12,10 @@ use exports::wasi::filesystem::types::{
 use wasi::filesystem::preopens;
 use wasi::filesystem::types;
 use wasi::logging::logging::{log, Level};
+
+mod path;
+
+use path::Location;
 
 #[macro_export]
 macro_rules! trace {
@@ -35,7 +38,7 @@ impl Preopens for FilesystemTracing {
         preopens::get_directories()
             .into_iter()
             .map(|(fd, path)| {
-                let fd = Descriptor::new(TracingDescriptor::new(fd, PathBuf::from(path.clone())));
+                let fd = Descriptor::new(TracingDescriptor::new(fd, Location::preopen(&path)));
                 (fd, path)
             })
             .collect()
@@ -48,12 +51,13 @@ impl Types for FilesystemTracing {
 
 struct TracingDescriptor {
     fd: types::Descriptor,
-    path: PathBuf,
+    /// What the descriptor is, the base `PATH` arguments are resolved against.
+    location: Location,
 }
 
 impl TracingDescriptor {
-    fn new(fd: types::Descriptor, path: PathBuf) -> Self {
-        Self { fd, path }
+    fn new(fd: types::Descriptor, location: Location) -> Self {
+        Self { fd, location }
     }
 }
 
@@ -367,13 +371,19 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
     ) -> Result<Descriptor, ErrorCode> {
         trace!("CALL wasi:filesystem/types#descriptor.open-at FD={self} PATH-FLAGS={path_flags} PATH={path} OPEN-FLAGS={open_flags} FLAGS={flags}");
 
-        self.fd
+        let fd = self
+            .fd
             .open_at(path_flags, path.clone(), open_flags, flags)
-            .await
-            .map(|fd| {
-                let path = self.path.clone().join(path);
-                Descriptor::new(TracingDescriptor::new(fd, path))
+            .await?;
+        // the host opened the path, so it is resolved against this descriptor
+        let follow = path_flags.contains(PathFlags::SYMLINK_FOLLOW);
+        let location = self
+            .location
+            .open(&path, follow, async |path: &str| {
+                self.fd.readlink_at(path.to_string()).await.ok()
             })
+            .await;
+        Ok(Descriptor::new(TracingDescriptor::new(fd, location)))
     }
 
     #[doc = "/ Read the contents of a symbolic link."]
@@ -506,18 +516,20 @@ impl exports::wasi::filesystem::types::GuestDescriptor for TracingDescriptor {
 
 impl Display for TracingDescriptor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            &self
-                .path
-                .to_str()
-                .expect("path contains invalid unicode characters"),
-        )
+        self.location.fmt(f)
     }
 }
 
 impl Display for types::Advice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.to_string().to_kebab_case())
+        f.write_str(match self {
+            types::Advice::Normal => "normal",
+            types::Advice::Sequential => "sequential",
+            types::Advice::Random => "random",
+            types::Advice::WillNeed => "will-need",
+            types::Advice::DontNeed => "dont-need",
+            types::Advice::NoReuse => "no-reuse",
+        })
     }
 }
 
