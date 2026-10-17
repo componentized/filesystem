@@ -1,0 +1,12 @@
+[package]
+name = "componentized-rt"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+
+[features]
+# background executor for futures started by sync exports, see `componentized_rt::executor`
+executor = ["dep:wit-bindgen", "wit-bindgen/inter-task-wakeup"]
+
+[dependencies]
+wit-bindgen = { workspace = true, optional = true }
