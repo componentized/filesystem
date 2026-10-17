@@ -1207,6 +1207,11 @@ dependencies = [
 name = "readonly"
 version = "0.1.0"
 dependencies = [
+ "componentized-rt",
+ "tempfile",
+ "test-harness",
+ "tokio",
+ "wasmtime",
  "wit-bindgen",
 ]
 

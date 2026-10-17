@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use exports::wasi::filesystem::preopens::Guest as Preopens;
 use exports::wasi::filesystem::types::{
     Advice, Descriptor, DescriptorBorrow, DescriptorFlags, DescriptorStat, DescriptorType,
@@ -17,7 +15,7 @@ impl Preopens for FilesystemReadOnly {
         preopens::get_directories()
             .into_iter()
             .map(|(fd, path)| {
-                let fd = Descriptor::new(ReadOnlyDescriptor::new(fd, path.clone().into()));
+                let fd = Descriptor::new(ReadOnlyDescriptor::new(fd));
                 (fd, path)
             })
             .collect()
@@ -30,12 +28,11 @@ impl Types for FilesystemReadOnly {
 
 struct ReadOnlyDescriptor {
     fd: types::Descriptor,
-    path: PathBuf,
 }
 
 impl ReadOnlyDescriptor {
-    fn new(fd: types::Descriptor, path: PathBuf) -> Self {
-        Self { fd, path }
+    fn new(fd: types::Descriptor) -> Self {
+        Self { fd }
     }
 }
 
@@ -55,18 +52,14 @@ impl exports::wasi::filesystem::types::GuestDescriptor for ReadOnlyDescriptor {
         _data: wit_bindgen::StreamReader<u8>,
         _offset: Filesize,
     ) -> wit_bindgen::FutureReader<Result<(), ErrorCode>> {
-        let (tx, rx) = wit_future::new(|| Err(ErrorCode::ReadOnly));
-        tx.write(Err(ErrorCode::ReadOnly));
-        rx
+        read_only()
     }
 
     fn append_via_stream(
         &self,
         _data: wit_bindgen::StreamReader<u8>,
     ) -> wit_bindgen::FutureReader<Result<(), ErrorCode>> {
-        let (tx, rx) = wit_future::new(|| Err(ErrorCode::ReadOnly));
-        tx.write(Err(ErrorCode::ReadOnly));
-        rx
+        read_only()
     }
 
     async fn advise(
@@ -171,6 +164,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for ReadOnlyDescriptor {
             || flags.contains(DescriptorFlags::FILE_INTEGRITY_SYNC)
             || flags.contains(DescriptorFlags::DATA_INTEGRITY_SYNC)
             || flags.contains(DescriptorFlags::REQUESTED_WRITE_SYNC)
+            || flags.contains(DescriptorFlags::MUTATE_DIRECTORY)
         {
             return Err(ErrorCode::ReadOnly);
         }
@@ -180,10 +174,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for ReadOnlyDescriptor {
             .open_at(path_flags, path.clone(), open_flags, flags)
             .await
         {
-            Ok(fd) => Ok(Descriptor::new(ReadOnlyDescriptor::new(
-                fd,
-                self.path.clone().join(path),
-            ))),
+            Ok(fd) => Ok(Descriptor::new(ReadOnlyDescriptor::new(fd))),
             Err(error_code) => Err(error_code),
         }
     }
@@ -229,6 +220,17 @@ impl exports::wasi::filesystem::types::GuestDescriptor for ReadOnlyDescriptor {
     ) -> Result<MetadataHashValue, ErrorCode> {
         self.fd.metadata_hash_at(path_flags, path).await
     }
+}
+
+/// A future resolved to `read-only`, for the sync exports that return a future.
+fn read_only() -> wit_bindgen::FutureReader<Result<(), ErrorCode>> {
+    let (tx, rx) = wit_future::new(|| Err(ErrorCode::ReadOnly));
+    // a sync export can't wait for the write, the reader has not been returned yet, so the write
+    // completes in the background
+    componentized_rt::executor::spawn(async move {
+        let _ = tx.write(Err(ErrorCode::ReadOnly)).await;
+    });
+    rx
 }
 
 wit_bindgen::generate!({
