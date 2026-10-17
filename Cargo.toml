@@ -4,12 +4,19 @@ members = [
     "components/chroot",
     "components/readonly",
     "components/tracing",
+    "crates/test-harness",
 ]
 
 [workspace.dependencies]
 chrono = { git = "https://github.com/chronotope/chrono.git", branch = "0.5.x" }
+componentized-rt = { path = "./crates/componentized-rt" }
 heck = "0.5"
-wit-bindgen = "0.62.0"
+tempfile = "3"
+test-harness = { path = "./crates/test-harness" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
+wasmtime = { version = "49", features = ["component-model-async"] }
+wasmtime-wasi = { version = "49", features = ["p3"] }
+wit-bindgen = { version = "0.62.0", features = ["async-spawn"] }
 
 [profile.release]
 opt-level = "s"
