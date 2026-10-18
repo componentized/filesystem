@@ -77,7 +77,11 @@ impl Preopens for GatedFilesystem {
         let call_summary = || format!("OPERATION=wasi:filesystem/preopens#get-directories");
         match authorize(&Operation::Preopens(PreopensOperation::GetDirectories)) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 vec![]
             }
             Ok(Deferred) => preopens::get_directories()
@@ -87,7 +91,11 @@ impl Preopens for GatedFilesystem {
                         (fd, path.clone()),
                     ))) {
                         Ok(Denied(reason)) => {
-                            trace!("Denied REASON={reason} {} PATH={path}", call_summary());
+                            trace!(
+                                "Denied REASON={reason} {} PATH={path}",
+                                call_summary(),
+                                reason = DisplayErrorCode(&reason)
+                            );
                             false
                         }
                         _ => true,
@@ -120,13 +128,17 @@ struct GatedDescriptor {
     fd: Rc<types::Descriptor>,
     /// What the descriptor is, the base `PATH` arguments are resolved against.
     location: Location,
+    /// Resolved path contained within the location, pre-computed for efficiency
+    path: String,
 }
 
 impl GatedDescriptor {
     fn new(fd: types::Descriptor, location: Location) -> Self {
+        let path = location.to_string();
         Self {
             fd: Rc::new(fd),
             location,
+            path,
         }
     }
 }
@@ -162,10 +174,18 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             )
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::ReadViaStream(
-            (&self.fd, DescriptorReadViaStreamArgs { offset }),
+            (
+                &self.fd,
+                self.path.clone(),
+                DescriptorReadViaStreamArgs { offset },
+            ),
         ))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 error_stream(reason)
             }
             Ok(Deferred) => self.fd.read_via_stream(offset),
@@ -204,10 +224,18 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             )
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::WriteViaStream(
-            (&self.fd, DescriptorWriteViaStreamArgs { offset }),
+            (
+                &self.fd,
+                self.path.clone(),
+                DescriptorWriteViaStreamArgs { offset },
+            ),
         ))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 error_future(reason)
             }
             Ok(Deferred) => self.fd.write_via_stream(data, offset),
@@ -238,10 +266,14 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         let call_summary =
             || format!("OPERATION=wasi:filesystem/types#descriptor.append-via-stream FD={self}");
         match authorize(&Operation::Descriptor(
-            DescriptorOperation::AppendViaStream((&self.fd,)),
+            DescriptorOperation::AppendViaStream((&self.fd, self.path.clone())),
         )) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 error_future(reason)
             }
             Ok(Deferred) => self.fd.append_via_stream(data),
@@ -273,6 +305,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::Advise((
             &self.fd,
+            self.path.clone(),
             DescriptorAdviseArgs {
                 offset,
                 length,
@@ -280,7 +313,11 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             },
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)?
             }
             Ok(Deferred) => self.fd.advise(offset, length, advice).await,
@@ -307,9 +344,14 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             || format!("OPERATION=wasi:filesystem/types#descriptor.sync-data FD={self}");
         match authorize(&Operation::Descriptor(DescriptorOperation::SyncData((
             &self.fd,
+            self.path.clone(),
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)?
             }
             Ok(Deferred) => self.fd.sync_data().await,
@@ -336,9 +378,14 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             || format!("OPERATION=wasi:filesystem/types#descriptor.get-flags FD={self}");
         match authorize(&Operation::Descriptor(DescriptorOperation::GetFlags((
             &self.fd,
+            self.path.clone(),
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => self.fd.get_flags().await,
@@ -369,9 +416,14 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             || format!("OPERATION=wasi:filesystem/types#descriptor.get-type FD={self}");
         match authorize(&Operation::Descriptor(DescriptorOperation::GetType((
             &self.fd,
+            self.path.clone(),
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => self.fd.get_type().await,
@@ -396,10 +448,15 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             || format!("OPERATION=wasi:filesystem/types#descriptor.set-size FD={self} SIZE={size}");
         match authorize(&Operation::Descriptor(DescriptorOperation::SetSize((
             &self.fd,
+            self.path.clone(),
             DescriptorSetSizeArgs { size },
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => self.fd.set_size(size).await,
@@ -431,13 +488,18 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::SetTimes((
             &self.fd,
+            self.path.clone(),
             DescriptorSetTimesArgs {
                 data_access_timestamp,
                 data_modification_timestamp,
             },
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => {
@@ -478,10 +540,14 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         let call_summary =
             || format!("OPERATION=wasi:filesystem/types#descriptor.read-directory FD={self}");
         match authorize(&Operation::Descriptor(DescriptorOperation::ReadDirectory(
-            (&self.fd,),
+            (&self.fd, self.path.clone()),
         ))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 error_stream(reason)
             }
             Ok(Deferred) => {
@@ -489,20 +555,17 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
                 let (mut tx, rx) = wit_stream::new();
                 let (result_tx, result_rx) = wit_future::new(|| Err(ErrorCode::Other(None)));
                 let fd = self.fd.clone();
+                let path = self.path.clone();
                 let call_summary = call_summary();
                 // a sync export can't wait for the entries, they are filtered in the background
                 componentized_rt::executor::spawn(async move {
-                    let result = match filter_directory_entries(
-                        &fd,
-                        entries,
-                        &mut tx,
-                        &call_summary,
-                    )
-                    .await
-                    {
-                        Ok(()) => result.await,
-                        Err(code) => Err(code),
-                    };
+                    let result =
+                        match filter_directory_entries(&fd, path, entries, &mut tx, &call_summary)
+                            .await
+                        {
+                            Ok(()) => result.await,
+                            Err(code) => Err(code),
+                        };
                     // the stream ends before the result is known
                     drop(tx);
                     let _ = result_tx.write(result).await;
@@ -531,9 +594,14 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         let call_summary = || format!("OPERATION=wasi:filesystem/types#descriptor.sync FD={self}");
         match authorize(&Operation::Descriptor(DescriptorOperation::Sync((
             &self.fd,
+            self.path.clone(),
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => self.fd.sync().await,
@@ -559,11 +627,16 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         match authorize(&Operation::Descriptor(
             DescriptorOperation::CreateDirectoryAt((
                 &self.fd,
+                self.path.clone(),
                 DescriptorCreateDirectoryAtArgs { path: path.clone() },
             )),
         )) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => self.fd.create_directory_at(path).await,
@@ -592,9 +665,14 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         let call_summary = || format!("OPERATION=wasi:filesystem/types#descriptor.stat FD={self}");
         match authorize(&Operation::Descriptor(DescriptorOperation::Stat((
             &self.fd,
+            self.path.clone(),
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => self.fd.stat().await,
@@ -627,13 +705,18 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::StatAt((
             &self.fd,
+            self.path.clone(),
             DescriptorStatAtArgs {
                 path_flags,
                 path: path.clone(),
             },
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => self.fd.stat_at(path_flags, path).await,
@@ -668,6 +751,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::SetTimesAt((
             &self.fd,
+            self.path.clone(),
             DescriptorSetTimesAtArgs {
                 path_flags,
                 path: path.clone(),
@@ -676,7 +760,11 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             },
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => {
@@ -721,6 +809,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::LinkAt((
             &self.fd,
+            self.path.clone(),
             DescriptorLinkAtArgs {
                 old_path_flags,
                 old_path: old_path.clone(),
@@ -729,7 +818,11 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             },
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => {
@@ -773,6 +866,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::OpenAt((
             &self.fd,
+            self.path.clone(),
             DescriptorOpenAtArgs {
                 path_flags,
                 path: path.clone(),
@@ -781,7 +875,11 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             },
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => {
@@ -823,10 +921,15 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::ReadlinkAt((
             &self.fd,
+            self.path.clone(),
             DescriptorReadlinkAtArgs { path: path.clone() },
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => self.fd.readlink_at(path).await,
@@ -854,11 +957,16 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         match authorize(&Operation::Descriptor(
             DescriptorOperation::RemoveDirectoryAt((
                 &self.fd,
+                self.path.clone(),
                 DescriptorRemoveDirectoryAtArgs { path: path.clone() },
             )),
         )) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => self.fd.remove_directory_at(path).await,
@@ -889,6 +997,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::RenameAt((
             &self.fd,
+            self.path.clone(),
             DescriptorRenameAtArgs {
                 old_path: old_path.clone(),
                 new_descriptor: &new_descriptor.fd,
@@ -896,7 +1005,11 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             },
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => {
@@ -928,13 +1041,18 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::SymlinkAt((
             &self.fd,
+            self.path.clone(),
             DescriptorSymlinkAtArgs {
                 old_path: old_path.clone(),
                 new_path: new_path.clone(),
             },
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => self.fd.symlink_at(old_path, new_path).await,
@@ -967,10 +1085,15 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::UnlinkFileAt((
             &self.fd,
+            self.path.clone(),
             DescriptorUnlinkFileAtArgs { path: path.clone() },
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => self.fd.unlink_file_at(path).await,
@@ -1022,9 +1145,14 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             || format!("OPERATION=wasi:filesystem/types#descriptor.metadata-hash FD={self}");
         match authorize(&Operation::Descriptor(DescriptorOperation::MetadataHash((
             &self.fd,
+            self.path.clone(),
         )))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => self.fd.metadata_hash().await,
@@ -1055,6 +1183,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         match authorize(&Operation::Descriptor(DescriptorOperation::MetadataHashAt(
             (
                 &self.fd,
+                self.path.clone(),
                 DescriptorMetadataHashAtArgs {
                     path_flags,
                     path: path.clone(),
@@ -1062,7 +1191,11 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             ),
         ))) {
             Ok(Denied(reason)) => {
-                warn!("Denied REASON={reason} {}", call_summary());
+                warn!(
+                    "Denied REASON={reason} {}",
+                    call_summary(),
+                    reason = DisplayErrorCode(&reason)
+                );
                 Err(reason)
             }
             Ok(Deferred) => self.fd.metadata_hash_at(path_flags, path).await,
@@ -1082,6 +1215,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
 /// dropped. A latch error ends the stream and fails the read.
 async fn filter_directory_entries(
     fd: &types::Descriptor,
+    path: String,
     mut entries: StreamReader<DirectoryEntry>,
     to: &mut wit_bindgen::StreamWriter<DirectoryEntry>,
     call_summary: &str,
@@ -1091,11 +1225,12 @@ async fn filter_directory_entries(
         let mut allowed = Vec::with_capacity(batch.len());
         for entry in batch {
             match authorize(&Operation::Descriptor(
-                DescriptorOperation::ReadDirectoryEntry((fd, entry.clone())),
+                DescriptorOperation::ReadDirectoryEntry((fd, path.clone(), entry.clone())),
             )) {
                 Ok(Denied(reason)) => {
                     trace!(
                         "Denied REASON={reason} {call_summary} NAME={name} TYPE={type_}",
+                        reason = DisplayErrorCode(&reason),
                         name = entry.name,
                         type_ = entry.type_
                     );
@@ -1160,6 +1295,55 @@ impl From<LatchErrorCode> for ErrorCode {
             }
             LatchErrorCode::Other(None) => Self::Other(Some("latch-error".to_string())),
         }
+    }
+}
+
+/// Displays a denial reason the way the gate logs it, e.g. `not-permitted`.
+///
+/// The generated bindings already implement `Display` for [`ErrorCode`], with its debug form.
+struct DisplayErrorCode<'a>(&'a ErrorCode);
+impl std::fmt::Display for DisplayErrorCode<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(match self.0 {
+            ErrorCode::Access => "access",
+            ErrorCode::Already => "already",
+            ErrorCode::BadDescriptor => "bad-descriptor",
+            ErrorCode::Busy => "busy",
+            ErrorCode::Deadlock => "deadlock",
+            ErrorCode::Quota => "quota",
+            ErrorCode::Exist => "exist",
+            ErrorCode::FileTooLarge => "file-too-large",
+            ErrorCode::IllegalByteSequence => "illegal-byte-sequence",
+            ErrorCode::InProgress => "in-progress",
+            ErrorCode::Interrupted => "interrupted",
+            ErrorCode::Invalid => "invalid",
+            ErrorCode::Io => "io",
+            ErrorCode::IsDirectory => "is-directory",
+            ErrorCode::Loop => "loop",
+            ErrorCode::TooManyLinks => "too-many-links",
+            ErrorCode::MessageSize => "message-size",
+            ErrorCode::NameTooLong => "name-too-long",
+            ErrorCode::NoDevice => "no-device",
+            ErrorCode::NoEntry => "no-entry",
+            ErrorCode::NoLock => "no-lock",
+            ErrorCode::InsufficientMemory => "insufficient-memory",
+            ErrorCode::InsufficientSpace => "insufficient-space",
+            ErrorCode::NotDirectory => "not-directory",
+            ErrorCode::NotEmpty => "not-empty",
+            ErrorCode::NotRecoverable => "not-recoverable",
+            ErrorCode::Unsupported => "unsupported",
+            ErrorCode::NoTty => "no-tty",
+            ErrorCode::NoSuchDevice => "no-such-device",
+            ErrorCode::Overflow => "overflow",
+            ErrorCode::NotPermitted => "not-permitted",
+            ErrorCode::Pipe => "pipe",
+            ErrorCode::ReadOnly => "read-only",
+            ErrorCode::InvalidSeek => "invalid-seek",
+            ErrorCode::TextFileBusy => "text-file-busy",
+            ErrorCode::CrossDevice => "cross-device",
+            ErrorCode::Other(Some(message)) => message,
+            ErrorCode::Other(None) => "other",
+        })
     }
 }
 

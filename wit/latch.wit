@@ -2,6 +2,8 @@
 interface latch {
     use wasi:filesystem/types@0.3.0.{advice, descriptor, descriptor-flags, directory-entry, error-code as filesystem-error-code, filesize, open-flags, new-timestamp, path-flags};
 
+    type path = string;
+
     record descriptor-read-via-stream-args {
         offset: filesize,
     }
@@ -26,95 +28,95 @@ interface latch {
     }
 
     record descriptor-create-directory-at-args {
-        path: string,
+        path: path,
     }
 
     record descriptor-stat-at-args {
         path-flags: path-flags,
-        path: string,
+        path: path,
     }
 
     record descriptor-set-times-at-args {
         path-flags: path-flags,
-        path: string,
+        path: path,
         data-access-timestamp: new-timestamp,
         data-modification-timestamp: new-timestamp,
     }
 
     record descriptor-link-at-args {
         old-path-flags: path-flags,
-        old-path: string,
+        old-path: path,
         new-descriptor: borrow<descriptor>,
-        new-path: string,
+        new-path: path,
     }
 
     record descriptor-open-at-args {
         path-flags: path-flags,
-        path: string,
+        path: path,
         open-flags: open-flags,
         %flags: descriptor-flags,
     }
 
     record descriptor-readlink-at-args {
-        path: string,
+        path: path,
     }
 
     record descriptor-remove-directory-at-args {
-        path: string,
+        path: path,
     }
 
     record descriptor-rename-at-args {
-        old-path: string,
+        old-path: path,
         new-descriptor: borrow<descriptor>,
-        new-path: string,
+        new-path: path,
     }
 
     record descriptor-symlink-at-args {
-        old-path: string,
-        new-path: string,
+        old-path: path,
+        new-path: path,
     }
 
     record descriptor-unlink-file-at-args {
-        path: string,
+        path: path,
     }
 
 
     record descriptor-metadata-hash-at-args {
         path-flags: path-flags,
-        path: string,
+        path: path,
     }
 
     variant preopens-operation {
         get-directories,
-        get-directories-item(tuple<borrow<descriptor>, string>),
+        get-directories-item(tuple<borrow<descriptor>, path>),
     }
 
     variant descriptor-operation {
-        read-via-stream(tuple<borrow<descriptor>, descriptor-read-via-stream-args>),
-        write-via-stream(tuple<borrow<descriptor>, descriptor-write-via-stream-args>),
-        append-via-stream(tuple<borrow<descriptor>>),
-        advise(tuple<borrow<descriptor>, descriptor-advise-args>),
-        sync-data(tuple<borrow<descriptor>>),
-        get-flags(tuple<borrow<descriptor>>),
-        get-type(tuple<borrow<descriptor>>),
-        set-size(tuple<borrow<descriptor>, descriptor-set-size-args>),
-        set-times(tuple<borrow<descriptor>, descriptor-set-times-args>),
-        read-directory(tuple<borrow<descriptor>>),
-        read-directory-entry(tuple<borrow<descriptor>, directory-entry>),
-        sync(tuple<borrow<descriptor>>),
-        create-directory-at(tuple<borrow<descriptor>, descriptor-create-directory-at-args>),
-        stat(tuple<borrow<descriptor>>),
-        stat-at(tuple<borrow<descriptor>, descriptor-stat-at-args>),
-        set-times-at(tuple<borrow<descriptor>, descriptor-set-times-at-args>),
-        link-at(tuple<borrow<descriptor>, descriptor-link-at-args>),
-        open-at(tuple<borrow<descriptor>, descriptor-open-at-args>),
-        readlink-at(tuple<borrow<descriptor>, descriptor-readlink-at-args>),
-        remove-directory-at(tuple<borrow<descriptor>, descriptor-remove-directory-at-args>),
-        rename-at(tuple<borrow<descriptor>, descriptor-rename-at-args>),
-        symlink-at(tuple<borrow<descriptor>, descriptor-symlink-at-args>),
-        unlink-file-at(tuple<borrow<descriptor>, descriptor-unlink-file-at-args>),
-        metadata-hash(tuple<borrow<descriptor>>),
-        metadata-hash-at(tuple<borrow<descriptor>, descriptor-metadata-hash-at-args>),
+        read-via-stream(tuple<borrow<descriptor>, path, descriptor-read-via-stream-args>),
+        write-via-stream(tuple<borrow<descriptor>, path, descriptor-write-via-stream-args>),
+        append-via-stream(tuple<borrow<descriptor>, path>),
+        advise(tuple<borrow<descriptor>, path, descriptor-advise-args>),
+        sync-data(tuple<borrow<descriptor>, path>),
+        get-flags(tuple<borrow<descriptor>, path>),
+        get-type(tuple<borrow<descriptor>, path>),
+        set-size(tuple<borrow<descriptor>, path, descriptor-set-size-args>),
+        set-times(tuple<borrow<descriptor>, path, descriptor-set-times-args>),
+        read-directory(tuple<borrow<descriptor>, path>),
+        read-directory-entry(tuple<borrow<descriptor>, path, directory-entry>),
+        sync(tuple<borrow<descriptor>, path>),
+        create-directory-at(tuple<borrow<descriptor>, path, descriptor-create-directory-at-args>),
+        stat(tuple<borrow<descriptor>, path>),
+        stat-at(tuple<borrow<descriptor>, path, descriptor-stat-at-args>),
+        set-times-at(tuple<borrow<descriptor>, path, descriptor-set-times-at-args>),
+        link-at(tuple<borrow<descriptor>, path, descriptor-link-at-args>),
+        open-at(tuple<borrow<descriptor>, path, descriptor-open-at-args>),
+        readlink-at(tuple<borrow<descriptor>, path, descriptor-readlink-at-args>),
+        remove-directory-at(tuple<borrow<descriptor>, path, descriptor-remove-directory-at-args>),
+        rename-at(tuple<borrow<descriptor>, path, descriptor-rename-at-args>),
+        symlink-at(tuple<borrow<descriptor>, path, descriptor-symlink-at-args>),
+        unlink-file-at(tuple<borrow<descriptor>, path, descriptor-unlink-file-at-args>),
+        metadata-hash(tuple<borrow<descriptor>, path>),
+        metadata-hash-at(tuple<borrow<descriptor>, path, descriptor-metadata-hash-at-args>),
     }
 
     /// Operations for the wasi:sockets package.

@@ -49,6 +49,7 @@ impl Latch for ReadOnlyLatch {
                 }
                 DescriptorOperation::OpenAt((
                     _,
+                    _,
                     DescriptorOpenAtArgs {
                         open_flags, flags, ..
                     },

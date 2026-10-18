@@ -12,3 +12,9 @@ chrono = { workspace = true }
 componentized-rt = { workspace = true, features = ["executor"] }
 heck = { workspace = true }
 wit-bindgen = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+test-harness = { workspace = true }
+tokio = { workspace = true }
+wasmtime = { workspace = true }
