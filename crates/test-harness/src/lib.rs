@@ -246,6 +246,11 @@ impl LogEntry {
         Self::log(Level::Error, context, message)
     }
 
+    /// A critical message logged by the test subject.
+    pub fn critical(context: impl Into<String>, message: impl Into<String>) -> Self {
+        Self::log(Level::Critical, context, message)
+    }
+
     fn log(level: Level, context: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             level,

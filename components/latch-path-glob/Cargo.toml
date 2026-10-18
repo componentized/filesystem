@@ -8,9 +8,6 @@ license = "Apache-2.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-wit-bindgen = { workspace = true }
+filesystem-latch = { workspace = true }
 glob = "0.3"
-
-[build-dependencies]
-heck = { workspace = true }
-wit-parser = "0.259"
+wit-bindgen = { workspace = true }

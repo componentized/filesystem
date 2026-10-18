@@ -5,6 +5,7 @@ members = [
     "components/gate",
     "components/latch-defer-all",
     "components/latch-deny-all",
+    "components/latch-deny-random",
     "components/latch-deny-symlink-at",
     "components/latch-n2",
     "components/latch-n3",
@@ -13,6 +14,7 @@ members = [
     "components/latch-path-glob",
     "components/latch-readonly",
     "components/trace",
+    "crates/filesystem-latch",
     "crates/filesystem-latch-n",
     "crates/test-harness",
 ]
@@ -20,6 +22,7 @@ members = [
 [workspace.dependencies]
 chrono = { git = "https://github.com/chronotope/chrono.git", branch = "0.5.x" }
 componentized-rt = { path = "./crates/componentized-rt" }
+filesystem-latch = { path = "./crates/filesystem-latch" }
 filesystem-latch-n = { path = "./crates/filesystem-latch-n" }
 heck = "0.5"
 tempfile = "3"

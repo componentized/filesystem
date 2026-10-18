@@ -535,6 +535,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
+name = "filesystem-latch"
+version = "0.1.0"
+dependencies = [
+ "heck",
+ "wit-bindgen",
+ "wit-parser 0.259.0",
+]
+
+[[package]]
 name = "filesystem-latch-n"
 version = "0.1.0"
 dependencies = [
@@ -1008,6 +1017,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "latch-deny-random"
+version = "0.1.0"
+dependencies = [
+ "filesystem-latch",
+ "tempfile",
+ "test-harness",
+ "tokio",
+ "wasmtime",
+ "wit-bindgen",
+]
+
+[[package]]
 name = "latch-deny-symlink-at"
 version = "0.1.0"
 dependencies = [
@@ -1050,10 +1071,9 @@ dependencies = [
 name = "latch-path-glob"
 version = "0.1.0"
 dependencies = [
+ "filesystem-latch",
  "glob",
- "heck",
  "wit-bindgen",
- "wit-parser 0.259.0",
 ]
 
 [[package]]

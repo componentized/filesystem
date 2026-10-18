@@ -3,13 +3,9 @@ use std::path::{Path, PathBuf};
 
 use glob::{MatchOptions, Pattern};
 
-use crate::{
-    componentized::filesystem::latch::{Decision::Deferred, DescriptorOperation},
-    exports::componentized::filesystem::latch::{
-        Decision, ErrorCode, FilesystemErrorCode, Guest as Latch, Operation, PreopensOperation,
-    },
-    wasi::filesystem::types::{DescriptorFlags, OpenFlags},
-    wasi::logging::logging::{log, Level},
+use filesystem_latch::{
+    Decision, DescriptorFlags, DescriptorOperation, ErrorCode, FilesystemErrorCode, Latch, OpenFlags,
+    Operation, PreopensOperation,
 };
 
 const LATCH_NAME: &str = "latch-path-glob";
@@ -132,22 +128,7 @@ struct Patterns {
 impl Patterns {
     /// Load the patterns from config, logging why when the config is invalid.
     fn load() -> Result<Patterns, ErrorCode> {
-        wasi::config::store::get_all()
-            .map_err(|err| match err {
-                wasi::config::store::Error::Upstream(message) => {
-                    format!("ERROR=upstream: {message}")
-                }
-                wasi::config::store::Error::Io(message) => format!("ERROR=io: {message}"),
-            })
-            .and_then(Patterns::parse)
-            .map_err(|message| {
-                log(
-                    Level::Critical,
-                    "componentized-latch",
-                    &format!("Invalid config LATCH={LATCH_NAME} {message}"),
-                );
-                ErrorCode::InvalidConfig(LATCH_NAME.to_string())
-            })
+        filesystem_latch::load_config(LATCH_NAME, Patterns::parse)
     }
 
     fn parse(config: Vec<(String, String)>) -> Result<Patterns, String> {
@@ -166,7 +147,7 @@ impl Patterns {
             } else if key.starts_with("readonly") {
                 readonly.push(Pattern::new(&value).map_err(|err| invalid(err.to_string()))?);
             } else if key == "reason" {
-                reason = get_error_code(value).unwrap_or(FilesystemErrorCode::Access);
+                reason = filesystem_latch::reason(value).unwrap_or(FilesystemErrorCode::Access);
             } else if key == "default" {
                 default = match value.as_str() {
                     "deny" => Action::Deny,
@@ -281,20 +262,20 @@ impl Latch for PathGlobLatch {
                 }
             },
             Operation::Descriptor(descriptor_operation) => match descriptor_operation {
-                DescriptorOperation::ReadViaStream(_) => Ok(Deferred),
+                DescriptorOperation::ReadViaStream(_) => Ok(Decision::Deferred),
                 DescriptorOperation::WriteViaStream((_, path, _)) => {
                     Patterns::authorize_mutation(path)
                 }
                 DescriptorOperation::AppendViaStream((_, path)) => {
                     Patterns::authorize_mutation(path)
                 }
-                DescriptorOperation::Advise(_) => Ok(Deferred),
+                DescriptorOperation::Advise(_) => Ok(Decision::Deferred),
                 DescriptorOperation::SyncData((_, path)) => Patterns::authorize_mutation(path),
-                DescriptorOperation::GetFlags(_) => Ok(Deferred),
-                DescriptorOperation::GetType(_) => Ok(Deferred),
+                DescriptorOperation::GetFlags(_) => Ok(Decision::Deferred),
+                DescriptorOperation::GetType(_) => Ok(Decision::Deferred),
                 DescriptorOperation::SetSize((_, path, _)) => Patterns::authorize_mutation(path),
                 DescriptorOperation::SetTimes((_, path, _)) => Patterns::authorize_mutation(path),
-                DescriptorOperation::ReadDirectory(_) => Ok(Deferred),
+                DescriptorOperation::ReadDirectory(_) => Ok(Decision::Deferred),
                 DescriptorOperation::ReadDirectoryEntry((_, path, entry)) => {
                     Patterns::authorize(path, vec![entry.name], Read)
                 }
@@ -302,7 +283,7 @@ impl Latch for PathGlobLatch {
                 DescriptorOperation::CreateDirectoryAt((_, path, args)) => {
                     Patterns::authorize(path, vec![args.path], Mutate)
                 }
-                DescriptorOperation::Stat(_) => Ok(Deferred),
+                DescriptorOperation::Stat(_) => Ok(Decision::Deferred),
                 DescriptorOperation::StatAt((_, path, args)) => {
                     Patterns::authorize(path, vec![args.path], Read)
                 }
@@ -331,7 +312,7 @@ impl Latch for PathGlobLatch {
                 DescriptorOperation::UnlinkFileAt((_, path, args)) => {
                     Patterns::authorize(path, vec![args.path], Mutate)
                 }
-                DescriptorOperation::MetadataHash(_) => Ok(Deferred),
+                DescriptorOperation::MetadataHash(_) => Ok(Decision::Deferred),
                 DescriptorOperation::MetadataHashAt((_, path, args)) => {
                     Patterns::authorize(path, vec![args.path], Read)
                 }
@@ -357,27 +338,7 @@ impl Latch for PathGlobLatch {
     }
 }
 
-/// The reason to deny with, `None` when the value is empty. Any value that is not the name of an
-/// `error-code` case is `other` with the value as the message.
-fn get_error_code(value: String) -> Option<FilesystemErrorCode> {
-    match value.as_str() {
-        "" => None,
-        "other" => Some(FilesystemErrorCode::Other(None)),
-        // error_code_from_name is defined by build.rs
-        name => Some(error_code_from_name(name).unwrap_or(FilesystemErrorCode::Other(Some(value)))),
-    }
-}
-
-include!(concat!(env!("OUT_DIR"), "/error_code.rs"));
-
-wit_bindgen::generate!({
-    path: "../wit",
-    world: "latch",
-    merge_structurally_equal_types: true,
-    generate_all
-});
-
-export!(PathGlobLatch);
+filesystem_latch::export!(PathGlobLatch with_types_in filesystem_latch::bindings);
 
 #[cfg(test)]
 mod tests {
@@ -674,31 +635,6 @@ mod tests {
             parse(&[("default", "grant")]).err().unwrap(),
             "KEY=default VALUE=grant ERROR=expected 'deny' or 'defer'"
         );
-    }
-
-    #[test]
-    fn every_error_code_is_parsed_by_name() {
-        for (name, code) in [
-            ("not-permitted", FilesystemErrorCode::NotPermitted),
-            ("access", FilesystemErrorCode::Access),
-            ("cross-device", FilesystemErrorCode::CrossDevice),
-            (
-                "illegal-byte-sequence",
-                FilesystemErrorCode::IllegalByteSequence,
-            ),
-            ("other", FilesystemErrorCode::Other(None)),
-            (
-                "i-am-a-teapot",
-                FilesystemErrorCode::Other(Some("i-am-a-teapot".to_string())),
-            ),
-        ] {
-            assert_eq!(
-                format!("{:?}", get_error_code(name.to_string())),
-                format!("{:?}", Some(code)),
-                "{name}"
-            );
-        }
-        assert!(get_error_code(String::new()).is_none());
     }
 
     #[test]

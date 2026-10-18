@@ -25,3 +25,7 @@ world latch-n {
     import latch3: componentized:filesystem/latch@0.3.0-dev;
     import latch4: componentized:filesystem/latch@0.3.0-dev;
 }
+
+world insecure-random {
+    import wasi:random/insecure@0.3.0;
+}

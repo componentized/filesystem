@@ -17,6 +17,7 @@ A collection of utility components that remix wasi:filesystem types and interfac
 - [`chroot`](./components/chroot/)
 - [`gate`](./components/gate/)
 - [`latch-deny-all`](./components/latch-deny-all/)
+- [`latch-deny-random`](./components/latch-deny-random/)
 - [`latch-deny-symlink-at`](./components/latch-deny-symlink-at/)
 - [`latch-defer-all`](./components/latch-defer-all/)
 - [`latch-n2`](./components/latch-n2/)
