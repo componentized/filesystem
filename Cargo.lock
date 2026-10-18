@@ -1008,6 +1008,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "latch-deny-symlink-at"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "test-harness",
+ "tokio",
+ "wasmtime",
+ "wit-bindgen",
+]
+
+[[package]]
 name = "latch-n2"
 version = "0.1.0"
 dependencies = [

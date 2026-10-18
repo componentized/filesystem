@@ -5,6 +5,7 @@ members = [
     "components/gate",
     "components/latch-defer-all",
     "components/latch-deny-all",
+    "components/latch-deny-symlink-at",
     "components/latch-n2",
     "components/latch-n3",
     "components/latch-n4",
