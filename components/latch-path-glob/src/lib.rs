@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use glob::{MatchOptions, Pattern};
 
@@ -8,6 +8,7 @@ use crate::{
     exports::componentized::filesystem::latch::{
         Decision, ErrorCode, FilesystemErrorCode, Guest as Latch, Operation, PreopensOperation,
     },
+    wasi::filesystem::types::{DescriptorFlags, OpenFlags},
     wasi::logging::logging::{log, Level},
 };
 
@@ -97,9 +98,32 @@ fn compare_specificity(a: &[(u8, usize)], b: &[(u8, usize)]) -> std::cmp::Orderi
         .unwrap_or(std::cmp::Ordering::Equal)
 }
 
+/// Whether an operation only reads the filesystem, or may change it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Access {
+    Read,
+    Mutate,
+}
+
+/// Whether opening a file with the flags would let the descriptor change the filesystem.
+fn open_access(open_flags: OpenFlags, flags: DescriptorFlags) -> Access {
+    let mutating_open = OpenFlags::CREATE | OpenFlags::EXCLUSIVE | OpenFlags::TRUNCATE;
+    let mutating_flags = DescriptorFlags::WRITE
+        | DescriptorFlags::FILE_INTEGRITY_SYNC
+        | DescriptorFlags::DATA_INTEGRITY_SYNC
+        | DescriptorFlags::REQUESTED_WRITE_SYNC
+        | DescriptorFlags::MUTATE_DIRECTORY;
+    match open_flags.intersects(mutating_open) || flags.intersects(mutating_flags) {
+        true => Access::Mutate,
+        false => Access::Read,
+    }
+}
+
 struct Patterns {
     /// most specific first
     rules: Vec<Rule>,
+    /// paths that may be read but not changed, when the rules defer
+    readonly: Vec<Pattern>,
     reason: FilesystemErrorCode,
     default: Action,
     match_options: MatchOptions,
@@ -128,6 +152,7 @@ impl Patterns {
 
     fn parse(config: Vec<(String, String)>) -> Result<Patterns, String> {
         let mut rules: Vec<Rule> = vec![];
+        let mut readonly: Vec<Pattern> = vec![];
         let mut reason = FilesystemErrorCode::NotPermitted;
         let mut default = Action::Defer;
         let mut case_sensitive = false;
@@ -138,6 +163,8 @@ impl Patterns {
                 rules.push(Rule::new(&value, Action::Deny).map_err(invalid)?);
             } else if key.starts_with("defer") {
                 rules.push(Rule::new(&value, Action::Defer).map_err(invalid)?);
+            } else if key.starts_with("readonly") {
+                readonly.push(Pattern::new(&value).map_err(|err| invalid(err.to_string()))?);
             } else if key == "reason" {
                 reason = get_error_code(value).unwrap_or(FilesystemErrorCode::NotPermitted);
             } else if key == "default" {
@@ -161,16 +188,30 @@ impl Patterns {
 
         Ok(Patterns {
             rules,
+            readonly,
             reason,
             default,
             match_options: match_options(case_sensitive),
         })
     }
 
-    fn authorize(path: String, paths: Vec<String>) -> Result<Decision, ErrorCode> {
+    /// Decide an operation on the base path, or on the paths relative to it.
+    fn authorize(path: String, paths: Vec<String>, access: Access) -> Result<Decision, ErrorCode> {
+        Patterns::with(|patterns| patterns.decide(&path, &paths, access))
+    }
+
+    /// Decide an operation that changes the descriptor at the path, without a path argument.
+    ///
+    /// The deny and defer patterns are not evaluated, only the readonly patterns: the descriptor was
+    /// already deferred when it was opened or preopened, it can't be obtained otherwise.
+    fn authorize_mutation(path: String) -> Result<Decision, ErrorCode> {
+        Patterns::with(|patterns| patterns.readonly_decision(&[PathBuf::from(path)]))
+    }
+
+    fn with(decide: impl FnOnce(&Patterns) -> Decision) -> Result<Decision, ErrorCode> {
         // config is loaded once, an invalid config fails every authorization
         STATE.with_borrow_mut(|state| match state.get_or_insert_with(Patterns::load) {
-            Ok(patterns) => Ok(patterns.decide(&path, &paths)),
+            Ok(patterns) => Ok(decide(patterns)),
             Err(err) => Err(err.clone()),
         })
     }
@@ -178,17 +219,33 @@ impl Patterns {
     /// Deny when the base path, or any of the paths relative to it, is denied.
     ///
     /// Each path is decided by the most specific matching pattern, or the default when no pattern
-    /// matches.
-    fn decide(&self, path: &str, paths: &[String]) -> Decision {
+    /// matches. An operation that is otherwise deferred and changes the filesystem is denied with
+    /// `read-only` when any of its paths matches a readonly pattern.
+    fn decide(&self, path: &str, paths: &[String], access: Access) -> Decision {
         let base = Path::new(path);
-        let denied = match paths {
-            [] => self.action(base) == Action::Deny,
-            paths => paths
-                .iter()
-                .any(|p| self.action(&base.join(p)) == Action::Deny),
+        let paths: Vec<PathBuf> = match paths {
+            [] => vec![base.to_path_buf()],
+            paths => paths.iter().map(|p| base.join(p)).collect(),
         };
-        match denied {
-            true => Decision::Denied(self.reason.clone()),
+        if paths.iter().any(|p| self.action(p) == Action::Deny) {
+            return Decision::Denied(self.reason.clone());
+        }
+        match access {
+            Access::Read => Decision::Deferred,
+            Access::Mutate => self.readonly_decision(&paths),
+        }
+    }
+
+    /// Deny with `read-only` when any of the paths matches a readonly pattern, regardless of the
+    /// configured reason.
+    fn readonly_decision(&self, paths: &[PathBuf]) -> Decision {
+        let readonly = paths.iter().any(|path| {
+            self.readonly
+                .iter()
+                .any(|pattern| pattern.matches_path_with(path, self.match_options))
+        });
+        match readonly {
+            true => Decision::Denied(FilesystemErrorCode::ReadOnly),
             false => Decision::Deferred,
         }
     }
@@ -214,62 +271,69 @@ thread_local! {
 
 impl Latch for PathGlobLatch {
     fn authorize(operation: Operation) -> Result<Decision, ErrorCode> {
+        use Access::{Mutate, Read};
+
         match operation {
             Operation::Preopens(preopens_operation) => match preopens_operation {
                 PreopensOperation::GetDirectories => Ok(Decision::Deferred),
                 PreopensOperation::GetDirectoriesItem((_, path)) => {
-                    Patterns::authorize(path, vec![])
+                    Patterns::authorize(path, vec![], Read)
                 }
             },
             Operation::Descriptor(descriptor_operation) => match descriptor_operation {
                 DescriptorOperation::ReadViaStream(_) => Ok(Deferred),
-                DescriptorOperation::WriteViaStream(_) => Ok(Deferred),
-                DescriptorOperation::AppendViaStream(_) => Ok(Deferred),
+                DescriptorOperation::WriteViaStream((_, path, _)) => {
+                    Patterns::authorize_mutation(path)
+                }
+                DescriptorOperation::AppendViaStream((_, path)) => {
+                    Patterns::authorize_mutation(path)
+                }
                 DescriptorOperation::Advise(_) => Ok(Deferred),
-                DescriptorOperation::SyncData(_) => Ok(Deferred),
+                DescriptorOperation::SyncData((_, path)) => Patterns::authorize_mutation(path),
                 DescriptorOperation::GetFlags(_) => Ok(Deferred),
                 DescriptorOperation::GetType(_) => Ok(Deferred),
-                DescriptorOperation::SetSize(_) => Ok(Deferred),
-                DescriptorOperation::SetTimes(_) => Ok(Deferred),
+                DescriptorOperation::SetSize((_, path, _)) => Patterns::authorize_mutation(path),
+                DescriptorOperation::SetTimes((_, path, _)) => Patterns::authorize_mutation(path),
                 DescriptorOperation::ReadDirectory(_) => Ok(Deferred),
                 DescriptorOperation::ReadDirectoryEntry((_, path, entry)) => {
-                    Patterns::authorize(path, vec![entry.name])
+                    Patterns::authorize(path, vec![entry.name], Read)
                 }
-                DescriptorOperation::Sync(_) => Ok(Deferred),
+                DescriptorOperation::Sync((_, path)) => Patterns::authorize_mutation(path),
                 DescriptorOperation::CreateDirectoryAt((_, path, args)) => {
-                    Patterns::authorize(path, vec![args.path])
+                    Patterns::authorize(path, vec![args.path], Mutate)
                 }
                 DescriptorOperation::Stat(_) => Ok(Deferred),
                 DescriptorOperation::StatAt((_, path, args)) => {
-                    Patterns::authorize(path, vec![args.path])
+                    Patterns::authorize(path, vec![args.path], Read)
                 }
                 DescriptorOperation::SetTimesAt((_, path, args)) => {
-                    Patterns::authorize(path, vec![args.path])
+                    Patterns::authorize(path, vec![args.path], Mutate)
                 }
                 DescriptorOperation::LinkAt((_, path, args)) => {
-                    Patterns::authorize(path, vec![args.old_path, args.new_path])
+                    Patterns::authorize(path, vec![args.old_path, args.new_path], Mutate)
                 }
                 DescriptorOperation::OpenAt((_, path, args)) => {
-                    Patterns::authorize(path, vec![args.path])
+                    let access = open_access(args.open_flags, args.flags);
+                    Patterns::authorize(path, vec![args.path], access)
                 }
                 DescriptorOperation::ReadlinkAt((_, path, args)) => {
-                    Patterns::authorize(path, vec![args.path])
+                    Patterns::authorize(path, vec![args.path], Read)
                 }
                 DescriptorOperation::RemoveDirectoryAt((_, path, args)) => {
-                    Patterns::authorize(path, vec![args.path])
+                    Patterns::authorize(path, vec![args.path], Mutate)
                 }
                 DescriptorOperation::RenameAt((_, path, args)) => {
-                    Patterns::authorize(path, vec![args.old_path, args.new_path])
+                    Patterns::authorize(path, vec![args.old_path, args.new_path], Mutate)
                 }
                 DescriptorOperation::SymlinkAt((_, path, args)) => {
-                    Patterns::authorize(path, vec![args.old_path, args.new_path])
+                    Patterns::authorize(path, vec![args.old_path, args.new_path], Mutate)
                 }
                 DescriptorOperation::UnlinkFileAt((_, path, args)) => {
-                    Patterns::authorize(path, vec![args.path])
+                    Patterns::authorize(path, vec![args.path], Mutate)
                 }
                 DescriptorOperation::MetadataHash(_) => Ok(Deferred),
                 DescriptorOperation::MetadataHashAt((_, path, args)) => {
-                    Patterns::authorize(path, vec![args.path])
+                    Patterns::authorize(path, vec![args.path], Read)
                 }
             },
         }
@@ -333,8 +397,16 @@ mod tests {
     }
 
     fn decision(patterns: &Patterns, path: &str, paths: &[&str]) -> String {
+        decision_for(patterns, path, paths, Access::Read)
+    }
+
+    fn mutation(patterns: &Patterns, path: &str, paths: &[&str]) -> String {
+        decision_for(patterns, path, paths, Access::Mutate)
+    }
+
+    fn decision_for(patterns: &Patterns, path: &str, paths: &[&str], access: Access) -> String {
         let paths: Vec<String> = paths.iter().map(|p| p.to_string()).collect();
-        format!("{:?}", patterns.decide(path, &paths))
+        format!("{:?}", patterns.decide(path, &paths, access))
     }
 
     fn denied(reason: FilesystemErrorCode) -> String {
@@ -627,6 +699,138 @@ mod tests {
             );
         }
         assert!(get_error_code(String::new()).is_none());
+    }
+
+    #[test]
+    fn readonly_paths_deny_mutations_with_read_only() {
+        let patterns = patterns(&[("readonly", "/data/**")]);
+        let read_only = denied(FilesystemErrorCode::ReadOnly);
+        assert_eq!(mutation(&patterns, "/data", &["a.txt"]), read_only);
+        assert_eq!(decision(&patterns, "/data", &["a.txt"]), deferred());
+        assert_eq!(mutation(&patterns, "/data/a.txt", &[]), read_only);
+        assert_eq!(mutation(&patterns, "/other", &["a.txt"]), deferred());
+    }
+
+    #[test]
+    fn readonly_paths_allow_reads() {
+        let patterns = patterns(&[("readonly", "/data/**")]);
+        assert_eq!(decision(&patterns, "/data", &["a.txt"]), deferred());
+    }
+
+    #[test]
+    fn readonly_ignores_the_configured_reason() {
+        let patterns = patterns(&[("reason", "access"), ("readonly", "/data/**")]);
+        assert_eq!(
+            mutation(&patterns, "/data", &["a.txt"]),
+            denied(FilesystemErrorCode::ReadOnly)
+        );
+    }
+
+    #[test]
+    fn readonly_is_only_evaluated_when_otherwise_deferred() {
+        let denying = patterns(&[
+            ("reason", "access"),
+            ("deny", "/data/secret/*"),
+            ("readonly", "/data/**"),
+        ]);
+        // the deny pattern decides first, with the configured reason
+        assert_eq!(
+            mutation(&denying, "/data/secret", &["a.txt"]),
+            denied(FilesystemErrorCode::Access)
+        );
+        assert_eq!(
+            mutation(&denying, "/data", &["a.txt"]),
+            denied(FilesystemErrorCode::ReadOnly)
+        );
+        assert_eq!(decision(&denying, "/data", &["a.txt"]), deferred());
+
+        let default_deny = patterns(&[("default", "deny"), ("readonly", "/data/**")]);
+        assert_eq!(
+            mutation(&default_deny, "/data", &["a.txt"]),
+            denied(FilesystemErrorCode::NotPermitted)
+        );
+    }
+
+    #[test]
+    fn deferring_pattern_does_not_override_readonly() {
+        let patterns = patterns(&[
+            ("default", "deny"),
+            ("defer", "/data/**"),
+            ("readonly", "/data/archive/**"),
+        ]);
+        assert_eq!(mutation(&patterns, "/data", &["a.txt"]), deferred());
+        assert_eq!(
+            mutation(&patterns, "/data/archive", &["a.txt"]),
+            denied(FilesystemErrorCode::ReadOnly)
+        );
+        assert_eq!(decision(&patterns, "/data/archive", &["a.txt"]), deferred());
+        assert_eq!(
+            mutation(&patterns, "/", &["a.txt"]),
+            denied(FilesystemErrorCode::NotPermitted)
+        );
+    }
+
+    #[test]
+    fn any_readonly_path_denies_a_mutation() {
+        let patterns = patterns(&[("readonly", "/data/archive/**")]);
+        // moving a file out of a readonly directory changes it
+        assert_eq!(
+            mutation(&patterns, "/data", &["archive/a.txt", "a.txt"]),
+            denied(FilesystemErrorCode::ReadOnly)
+        );
+    }
+
+    #[test]
+    fn readonly_matching_follows_case_sensitivity() {
+        let insensitive = patterns(&[("readonly", "/Data/**")]);
+        assert_eq!(
+            mutation(&insensitive, "/data", &["a.txt"]),
+            denied(FilesystemErrorCode::ReadOnly)
+        );
+        let sensitive = patterns(&[("case-sensitive", "true"), ("readonly", "/Data/**")]);
+        assert_eq!(mutation(&sensitive, "/data", &["a.txt"]), deferred());
+    }
+
+    #[test]
+    fn readonly_descriptor_mutations() {
+        let patterns = patterns(&[("readonly", "/data/**")]);
+        let decide =
+            |path: &str| format!("{:?}", patterns.readonly_decision(&[PathBuf::from(path)]));
+        assert_eq!(decide("/data/a.txt"), denied(FilesystemErrorCode::ReadOnly));
+        assert_eq!(decide("/other/a.txt"), deferred());
+    }
+
+    #[test]
+    fn opening_for_mutation() {
+        let read = DescriptorFlags::READ;
+        assert_eq!(open_access(OpenFlags::empty(), read), Access::Read);
+        assert_eq!(open_access(OpenFlags::DIRECTORY, read), Access::Read);
+        for open_flags in [OpenFlags::CREATE, OpenFlags::EXCLUSIVE, OpenFlags::TRUNCATE] {
+            assert_eq!(
+                open_access(open_flags, read),
+                Access::Mutate,
+                "{open_flags:?}"
+            );
+        }
+        for flags in [
+            DescriptorFlags::WRITE,
+            DescriptorFlags::FILE_INTEGRITY_SYNC,
+            DescriptorFlags::DATA_INTEGRITY_SYNC,
+            DescriptorFlags::REQUESTED_WRITE_SYNC,
+            DescriptorFlags::MUTATE_DIRECTORY,
+        ] {
+            assert_eq!(
+                open_access(OpenFlags::empty(), read | flags),
+                Access::Mutate,
+                "{flags:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn invalid_readonly_glob_is_invalid() {
+        let err = parse(&[("readonly", "[")]).err().unwrap();
+        assert!(err.starts_with("KEY=readonly VALUE=[ ERROR="), "{err}");
     }
 
     #[test]

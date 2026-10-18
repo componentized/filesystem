@@ -51,6 +51,19 @@ defer=/data/**
 /etc/passwd -> DENIED (access)
 ```
 
+Keys starting with `readonly` are parsed as globs for paths that may be read but not changed. They are only evaluated when the operation would otherwise be deferred, by a matching `defer` pattern or a `defer` default, and when the operation would change the filesystem. A matching operation is denied with `read-only`, regardless of the `reason` key. Operations that change the filesystem are writing, appending, syncing, resizing, setting times, creating directories, linking, renaming, removing, unlinking, and opening with flags that allow changes (`create`, `exclusive` or `truncate` open flags, or `write`, `mutate-directory` or sync descriptor flags). Operations on a descriptor without a path argument, like writing to a file, are evaluated against the descriptor's path and are only checked against `readonly` patterns, the `deny` and `defer` patterns were already evaluated when the descriptor was opened.
+
+```
+reason=access
+deny=/data/secret/**
+readonly=/data/**
+
+open /data/file.txt for reading -> DEFERRED
+open /data/file.txt for writing -> DENIED (read-only)
+open /data/secret/file.txt for reading -> DENIED (access)
+open /data/secret/file.txt for writing -> DENIED (access)
+```
+
 If the config is invalid (a pattern that does not parse as a glob, or an unknown `default` or `case-sensitive` value), the cause is logged when the config is loaded and every operation fails with an `invalid-config` latch error.
 
 ## Interfaces
