@@ -1,0 +1,6 @@
+package componentized:filesystem;
+
+export new local:latch-path-glob {
+    store: new local:latch-readonly-config{}.store,
+    ...
+}...;

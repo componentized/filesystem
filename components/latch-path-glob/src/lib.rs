@@ -834,6 +834,18 @@ mod tests {
     }
 
     #[test]
+    fn double_star_matches_every_path() {
+        let patterns = patterns(&[("readonly", "**")]);
+        for path in ["/", "/a.txt", "/a/b/c.txt", ".", "./a.txt", "data", "data/a/b.txt", ".hidden/.x"] {
+            assert_eq!(
+                format!("{:?}", patterns.readonly_decision(&[PathBuf::from(path)])),
+                denied(FilesystemErrorCode::ReadOnly),
+                "{path}"
+            );
+        }
+    }
+
+    #[test]
     fn invalid_glob_is_invalid() {
         let err = parse(&[("deny-1", "/a"), ("deny-2", "[")]).err().unwrap();
         assert!(err.starts_with("KEY=deny-2 VALUE=[ ERROR="), "{err}");

@@ -73,6 +73,7 @@ Imports:
 - `wasi:logging/logging@0.1.0-draft`: logs an invalid config
 - `wasi:config/store@0.2.0-rc.1`: the glob patterns
 - `wasi:filesystem/types@0.3.0`: the descriptor types of the operations being authorized
+- `wasi:clocks/system-clock@0.3.0`: the timestamp types of the operations being authorized
 
 Exports:
 

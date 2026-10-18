@@ -1046,10 +1046,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "latch-readonly"
+name = "latch-readonly-tests"
 version = "0.1.0"
 dependencies = [
- "wit-bindgen",
+ "tempfile",
+ "test-harness",
+ "tokio",
+ "wasmtime",
 ]
 
 [[package]]
