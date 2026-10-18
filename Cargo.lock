@@ -1333,18 +1333,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "readonly"
-version = "0.1.0"
-dependencies = [
- "componentized-rt",
- "tempfile",
- "test-harness",
- "tokio",
- "wasmtime",
- "wit-bindgen",
-]
-
-[[package]]
 name = "redox_users"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"

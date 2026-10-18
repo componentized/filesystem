@@ -23,7 +23,6 @@ A collection of utility components that remix wasi:filesystem types and interfac
 - [`latch-n4`](./components/latch-n4/)
 - [`latch-n5`](./components/latch-n5/)
 - [`latch-readonly`](./components/latch-readonly/)
-- ~~[`readonly`](./components/readonly/)~~ (deprecated, favor gate with readonly latch)
 - [`trace`](./components/trace/)
 
 ## Build
