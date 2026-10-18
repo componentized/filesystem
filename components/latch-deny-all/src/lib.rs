@@ -7,7 +7,7 @@ struct LatchDenyAll {}
 impl Latch for LatchDenyAll {
     #[allow(async_fn_in_trait)]
     fn authorize(_operation: Operation) -> Result<Decision, ErrorCode> {
-        Ok(Decision::Denied(FilesystemErrorCode::NotPermitted))
+        Ok(Decision::Denied(FilesystemErrorCode::Access))
     }
 
     #[allow(async_fn_in_trait)]

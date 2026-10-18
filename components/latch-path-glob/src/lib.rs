@@ -153,7 +153,7 @@ impl Patterns {
     fn parse(config: Vec<(String, String)>) -> Result<Patterns, String> {
         let mut rules: Vec<Rule> = vec![];
         let mut readonly: Vec<Pattern> = vec![];
-        let mut reason = FilesystemErrorCode::NotPermitted;
+        let mut reason = FilesystemErrorCode::Access;
         let mut default = Action::Defer;
         let mut case_sensitive = false;
 
@@ -166,7 +166,7 @@ impl Patterns {
             } else if key.starts_with("readonly") {
                 readonly.push(Pattern::new(&value).map_err(|err| invalid(err.to_string()))?);
             } else if key == "reason" {
-                reason = get_error_code(value).unwrap_or(FilesystemErrorCode::NotPermitted);
+                reason = get_error_code(value).unwrap_or(FilesystemErrorCode::Access);
             } else if key == "default" {
                 default = match value.as_str() {
                     "deny" => Action::Deny,
@@ -422,7 +422,7 @@ mod tests {
         let patterns = patterns(&[("deny", "/secret")]);
         assert_eq!(
             decision(&patterns, "/secret", &[]),
-            denied(FilesystemErrorCode::NotPermitted)
+            denied(FilesystemErrorCode::Access)
         );
         assert_eq!(decision(&patterns, "/", &[]), deferred());
     }
@@ -432,7 +432,7 @@ mod tests {
         let patterns = patterns(&[("deny", "/data/*.key")]);
         assert_eq!(
             decision(&patterns, "/data", &["id.key"]),
-            denied(FilesystemErrorCode::NotPermitted)
+            denied(FilesystemErrorCode::Access)
         );
         assert_eq!(decision(&patterns, "/data", &["id.pub"]), deferred());
         // only the joined paths are matched, not the base path alone
@@ -444,16 +444,16 @@ mod tests {
         let patterns = patterns(&[("deny", "/data/*.key")]);
         assert_eq!(
             decision(&patterns, "/data", &["id.pub", "id.key"]),
-            denied(FilesystemErrorCode::NotPermitted)
+            denied(FilesystemErrorCode::Access)
         );
     }
 
     #[test]
     fn multiple_deny_keys() {
         let patterns = patterns(&[("deny-1", "/a"), ("deny-2", "/b")]);
-        let not_permitted = denied(FilesystemErrorCode::NotPermitted);
-        assert_eq!(decision(&patterns, "/a", &[]), not_permitted);
-        assert_eq!(decision(&patterns, "/b", &[]), not_permitted);
+        let access = denied(FilesystemErrorCode::Access);
+        assert_eq!(decision(&patterns, "/a", &[]), access);
+        assert_eq!(decision(&patterns, "/b", &[]), access);
         assert_eq!(decision(&patterns, "/c", &[]), deferred());
     }
 
@@ -469,7 +469,7 @@ mod tests {
             ("access", FilesystemErrorCode::Access),
             ("read-only", FilesystemErrorCode::ReadOnly),
             ("other", FilesystemErrorCode::Other(None)),
-            ("", FilesystemErrorCode::NotPermitted),
+            ("", FilesystemErrorCode::Access),
             (
                 "custom-reason",
                 FilesystemErrorCode::Other(Some("custom-reason".to_string())),
@@ -628,27 +628,27 @@ mod tests {
         );
         assert_eq!(
             decision(&patterns, "/data", &["a.txt", "../etc/passwd"]),
-            denied(FilesystemErrorCode::NotPermitted)
+            denied(FilesystemErrorCode::Access)
         );
     }
 
     #[test]
     fn default_deny_uses_configured_reason_regardless_of_order() {
         for config in [
-            [("reason", "access"), ("default", "deny")],
-            [("default", "deny"), ("reason", "access")],
+            [("reason", "no-entry"), ("default", "deny")],
+            [("default", "deny"), ("reason", "no-entry")],
         ] {
             let patterns = patterns(&config);
             assert_eq!(
                 decision(&patterns, "/a", &[]),
-                denied(FilesystemErrorCode::Access)
+                denied(FilesystemErrorCode::NoEntry)
             );
         }
     }
 
     #[test]
     fn reason_does_not_change_the_default() {
-        let patterns = patterns(&[("reason", "access")]);
+        let patterns = patterns(&[("reason", "no-entry")]);
         assert_eq!(decision(&patterns, "/a", &[]), deferred());
     }
 
@@ -664,7 +664,7 @@ mod tests {
         assert_eq!(decision(&patterns, "/data/a.txt", &[]), deferred());
         assert_eq!(
             decision(&patterns, "/etc/passwd", &[]),
-            denied(FilesystemErrorCode::NotPermitted)
+            denied(FilesystemErrorCode::Access)
         );
     }
 
@@ -719,7 +719,7 @@ mod tests {
 
     #[test]
     fn readonly_ignores_the_configured_reason() {
-        let patterns = patterns(&[("reason", "access"), ("readonly", "/data/**")]);
+        let patterns = patterns(&[("reason", "no-entry"), ("readonly", "/data/**")]);
         assert_eq!(
             mutation(&patterns, "/data", &["a.txt"]),
             denied(FilesystemErrorCode::ReadOnly)
@@ -729,14 +729,14 @@ mod tests {
     #[test]
     fn readonly_is_only_evaluated_when_otherwise_deferred() {
         let denying = patterns(&[
-            ("reason", "access"),
+            ("reason", "no-entry"),
             ("deny", "/data/secret/*"),
             ("readonly", "/data/**"),
         ]);
         // the deny pattern decides first, with the configured reason
         assert_eq!(
             mutation(&denying, "/data/secret", &["a.txt"]),
-            denied(FilesystemErrorCode::Access)
+            denied(FilesystemErrorCode::NoEntry)
         );
         assert_eq!(
             mutation(&denying, "/data", &["a.txt"]),
@@ -747,7 +747,7 @@ mod tests {
         let default_deny = patterns(&[("default", "deny"), ("readonly", "/data/**")]);
         assert_eq!(
             mutation(&default_deny, "/data", &["a.txt"]),
-            denied(FilesystemErrorCode::NotPermitted)
+            denied(FilesystemErrorCode::Access)
         );
     }
 
@@ -766,7 +766,7 @@ mod tests {
         assert_eq!(decision(&patterns, "/data/archive", &["a.txt"]), deferred());
         assert_eq!(
             mutation(&patterns, "/", &["a.txt"]),
-            denied(FilesystemErrorCode::NotPermitted)
+            denied(FilesystemErrorCode::Access)
         );
     }
 

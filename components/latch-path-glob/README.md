@@ -2,7 +2,10 @@
 
 Filesystem latch that uses glob patterns to defer or deny operations on a path.
 
-The patterns are defined in a wasi:config/store. Keys starting with `deny` are parsed as globs with matching paths being denied. Multiple patterns are allowed by defining unique config keys (e.g. `deny-1`, `deny-2`, etc). Keys starting with `defer` are parsed as globs with matching paths deferring the decision.
+The patterns are defined in a `wasi:config/store`. Keys starting with `deny` are parsed as globs with matching paths being denied. Multiple patterns are allowed by defining unique config keys (e.g. `deny-1`, `deny-2`, etc). Keys starting with `defer` are parsed as globs with matching paths deferring the decision.
+
+> [!CAUTION]
+> Symlinks and overlapping preopen directories may provide alternate paths to the same file either matching or bypassing an expected pattern. Patterns are applied to paths as provided to calls on the `wasi:filesystem` interface.
 
 A single `*` matches within a path segment, between `/` separators, while `**` spans segments.
 
@@ -40,28 +43,28 @@ Whether the host filesystem is case sensitive is not known to the latch, so matc
 
 Paths that do not match any pattern use the `default` decision, either `defer` (the default) or `deny`.
 
-Denied operations fail with `not-permitted` unless the `reason` key is set. Any `wasi:filesystem` error code is supported, e.g. `access` or `read-only`, any other value is reported as `other` with the value as the message. The reason applies to both matching `deny` patterns and a `deny` default, and does not change the default decision.
+Denied operations fail with `access` unless the `reason` key is set. Any `wasi:filesystem` error code is supported, e.g. `no-entry` to hide denied paths or `not-permitted`, any other value is reported as `other` with the value as the message. The reason applies to both matching `deny` patterns and a `deny` default, and does not change the default decision.
 
 ```
 default=deny
-reason=access
+reason=no-entry
 defer=/data/**
 
 /data/file.txt -> DEFERRED
-/etc/passwd -> DENIED (access)
+/etc/passwd -> DENIED (no-entry)
 ```
 
 Keys starting with `readonly` are parsed as globs for paths that may be read but not changed. They are only evaluated when the operation would otherwise be deferred, by a matching `defer` pattern or a `defer` default, and when the operation would change the filesystem. A matching operation is denied with `read-only`, regardless of the `reason` key. Operations that change the filesystem are writing, appending, syncing, resizing, setting times, creating directories, linking, renaming, removing, unlinking, and opening with flags that allow changes (`create`, `exclusive` or `truncate` open flags, or `write`, `mutate-directory` or sync descriptor flags). Operations on a descriptor without a path argument, like writing to a file, are evaluated against the descriptor's path and are only checked against `readonly` patterns, the `deny` and `defer` patterns were already evaluated when the descriptor was opened.
 
 ```
-reason=access
+reason=no-entry
 deny=/data/secret/**
 readonly=/data/**
 
 open /data/file.txt for reading -> DEFERRED
 open /data/file.txt for writing -> DENIED (read-only)
-open /data/secret/file.txt for reading -> DENIED (access)
-open /data/secret/file.txt for writing -> DENIED (access)
+open /data/secret/file.txt for reading -> DENIED (no-entry)
+open /data/secret/file.txt for writing -> DENIED (no-entry)
 ```
 
 If the config is invalid (a pattern that does not parse as a glob, or an unknown `default` or `case-sensitive` value), the cause is logged when the config is loaded and every operation fails with an `invalid-config` latch error.

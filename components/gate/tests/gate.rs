@@ -241,7 +241,7 @@ async fn deny_all_hides_every_preopen() {
     assert_eq!(
         gate.recorder().logs(),
         [warn(
-            "Denied REASON=not-permitted OPERATION=wasi:filesystem/preopens#get-directories"
+            "Denied REASON=access OPERATION=wasi:filesystem/preopens#get-directories"
         )]
     );
 }
@@ -264,7 +264,7 @@ async fn deny_all_wins_over_defer_all() {
     assert_eq!(
         gate.recorder().logs(),
         [warn(
-            "Denied REASON=not-permitted OPERATION=wasi:filesystem/preopens#get-directories"
+            "Denied REASON=access OPERATION=wasi:filesystem/preopens#get-directories"
         )]
     );
 }
