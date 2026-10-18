@@ -1,8 +1,9 @@
 use crate::{
     exports::componentized::filesystem::latch::{
-        Decision, DescriptorOpenAtArgs, DescriptorOperation, Guest as Latch, Operation,
+        Decision, DescriptorOpenAtArgs, DescriptorOperation, ErrorCode, FilesystemErrorCode,
+        Guest as Latch, Operation,
     },
-    wasi::filesystem::types::{DescriptorFlags, ErrorCode, OpenFlags},
+    wasi::filesystem::types::{DescriptorFlags, OpenFlags},
 };
 
 struct ReadOnlyLatch {}
@@ -14,26 +15,38 @@ impl Latch for ReadOnlyLatch {
             Operation::Preopens(_preopens_operation) => Ok(Decision::Deferred),
             Operation::Descriptor(descriptor_operation) => match descriptor_operation {
                 DescriptorOperation::ReadViaStream(_) => Ok(Decision::Deferred),
-                DescriptorOperation::WriteViaStream(_) => Ok(Decision::Denied(ErrorCode::ReadOnly)),
+                DescriptorOperation::WriteViaStream(_) => {
+                    Ok(Decision::Denied(FilesystemErrorCode::ReadOnly))
+                }
                 DescriptorOperation::AppendViaStream(_) => {
-                    Ok(Decision::Denied(ErrorCode::ReadOnly))
+                    Ok(Decision::Denied(FilesystemErrorCode::ReadOnly))
                 }
                 DescriptorOperation::Advise(_) => Ok(Decision::Deferred),
-                DescriptorOperation::SyncData(_) => Ok(Decision::Denied(ErrorCode::ReadOnly)),
+                DescriptorOperation::SyncData(_) => {
+                    Ok(Decision::Denied(FilesystemErrorCode::ReadOnly))
+                }
                 DescriptorOperation::GetFlags(_) => Ok(Decision::Deferred),
                 DescriptorOperation::GetType(_) => Ok(Decision::Deferred),
-                DescriptorOperation::SetSize(_) => Ok(Decision::Denied(ErrorCode::ReadOnly)),
-                DescriptorOperation::SetTimes(_) => Ok(Decision::Denied(ErrorCode::ReadOnly)),
+                DescriptorOperation::SetSize(_) => {
+                    Ok(Decision::Denied(FilesystemErrorCode::ReadOnly))
+                }
+                DescriptorOperation::SetTimes(_) => {
+                    Ok(Decision::Denied(FilesystemErrorCode::ReadOnly))
+                }
                 DescriptorOperation::ReadDirectory(_) => Ok(Decision::Deferred),
                 DescriptorOperation::ReadDirectoryEntry(_) => Ok(Decision::Deferred),
-                DescriptorOperation::Sync(_) => Ok(Decision::Denied(ErrorCode::ReadOnly)),
+                DescriptorOperation::Sync(_) => Ok(Decision::Denied(FilesystemErrorCode::ReadOnly)),
                 DescriptorOperation::CreateDirectoryAt(_) => {
-                    Ok(Decision::Denied(ErrorCode::ReadOnly))
+                    Ok(Decision::Denied(FilesystemErrorCode::ReadOnly))
                 }
                 DescriptorOperation::Stat(_) => Ok(Decision::Deferred),
                 DescriptorOperation::StatAt(_) => Ok(Decision::Deferred),
-                DescriptorOperation::SetTimesAt(_) => Ok(Decision::Denied(ErrorCode::ReadOnly)),
-                DescriptorOperation::LinkAt(_) => Ok(Decision::Denied(ErrorCode::ReadOnly)),
+                DescriptorOperation::SetTimesAt(_) => {
+                    Ok(Decision::Denied(FilesystemErrorCode::ReadOnly))
+                }
+                DescriptorOperation::LinkAt(_) => {
+                    Ok(Decision::Denied(FilesystemErrorCode::ReadOnly))
+                }
                 DescriptorOperation::OpenAt((
                     _,
                     DescriptorOpenAtArgs {
@@ -49,18 +62,24 @@ impl Latch for ReadOnlyLatch {
                         || flags.contains(DescriptorFlags::REQUESTED_WRITE_SYNC)
                         || flags.contains(DescriptorFlags::MUTATE_DIRECTORY)
                     {
-                        Ok(Decision::Denied(ErrorCode::ReadOnly))
+                        Ok(Decision::Denied(FilesystemErrorCode::ReadOnly))
                     } else {
                         Ok(Decision::Deferred)
                     }
                 }
                 DescriptorOperation::ReadlinkAt(_) => Ok(Decision::Deferred),
                 DescriptorOperation::RemoveDirectoryAt(_) => {
-                    Ok(Decision::Denied(ErrorCode::ReadOnly))
+                    Ok(Decision::Denied(FilesystemErrorCode::ReadOnly))
                 }
-                DescriptorOperation::RenameAt(_) => Ok(Decision::Denied(ErrorCode::ReadOnly)),
-                DescriptorOperation::SymlinkAt(_) => Ok(Decision::Denied(ErrorCode::ReadOnly)),
-                DescriptorOperation::UnlinkFileAt(_) => Ok(Decision::Denied(ErrorCode::ReadOnly)),
+                DescriptorOperation::RenameAt(_) => {
+                    Ok(Decision::Denied(FilesystemErrorCode::ReadOnly))
+                }
+                DescriptorOperation::SymlinkAt(_) => {
+                    Ok(Decision::Denied(FilesystemErrorCode::ReadOnly))
+                }
+                DescriptorOperation::UnlinkFileAt(_) => {
+                    Ok(Decision::Denied(FilesystemErrorCode::ReadOnly))
+                }
                 DescriptorOperation::MetadataHash(_) => Ok(Decision::Deferred),
                 DescriptorOperation::MetadataHashAt(_) => Ok(Decision::Deferred),
             },
