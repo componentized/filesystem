@@ -650,6 +650,7 @@ name = "gate"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "componentized-rt",
  "heck",
  "wit-bindgen",
 ]

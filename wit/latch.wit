@@ -2,10 +2,6 @@
 interface latch {
     use wasi:filesystem/types@0.3.0.{advice, descriptor, descriptor-flags, directory-entry, error-code as filesystem-error-code, filesize, open-flags, new-timestamp, path-flags};
 
-    record descriptor-get-directory-args {
-        path: string,
-    }
-
     record descriptor-read-via-stream-args {
         offset: filesize,
     }

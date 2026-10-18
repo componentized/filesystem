@@ -1,7 +1,9 @@
 use std::fmt::Display;
+use std::rc::Rc;
 
 use chrono::DateTime;
 use heck::ToKebabCase;
+use wit_bindgen::{FutureReader, StreamReader, StreamResult};
 
 use exports::wasi::filesystem::preopens::Guest as Preopens;
 use exports::wasi::filesystem::types::{
@@ -26,7 +28,8 @@ use crate::componentized::filesystem::latch::{
 };
 use crate::componentized::filesystem::latch::{
     Decision::{Deferred, Denied},
-    DescriptorReadViaStreamArgs, ErrorCode as LatchErrorCode, Operation,
+    DescriptorReadViaStreamArgs, DescriptorWriteViaStreamArgs, ErrorCode as LatchErrorCode,
+    Operation,
 };
 
 macro_rules! error {
@@ -44,15 +47,6 @@ macro_rules! warn {
     };
     ($dst:expr) => {
         log(Level::Warn, "componentized-gate", &format!($dst));
-    };
-}
-
-macro_rules! trace {
-    ($dst:expr, $($arg:tt)*) => {
-        log(Level::Trace, "componentized-gate", &format!($dst, $($arg)*));
-    };
-    ($dst:expr) => {
-        log(Level::Trace, "componentized-gate", &format!($dst));
     };
 }
 
@@ -109,6 +103,7 @@ impl Preopens for GatedFilesystem {
             Err(code) => {
                 panic!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 )
             }
@@ -121,14 +116,18 @@ impl Types for GatedFilesystem {
 }
 
 struct GatedDescriptor {
-    fd: types::Descriptor,
+    /// Shared with background tasks that outlive the export which started them.
+    fd: Rc<types::Descriptor>,
     /// What the descriptor is, the base `PATH` arguments are resolved against.
     location: Location,
 }
 
 impl GatedDescriptor {
     fn new(fd: types::Descriptor, location: Location) -> Self {
-        Self { fd, location }
+        Self {
+            fd: Rc::new(fd),
+            location,
+        }
     }
 }
 
@@ -167,15 +166,16 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         ))) {
             Ok(Denied(reason)) => {
                 warn!("Denied REASON={reason} {}", call_summary());
-                Err(reason)?
+                error_stream(reason)
             }
             Ok(Deferred) => self.fd.read_via_stream(offset),
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
-                Err(code)?
+                error_stream(code.into())
             }
         }
     }
@@ -200,7 +200,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
     ) -> wit_bindgen::FutureReader<Result<(), ErrorCode>> {
         let call_summary = || {
             format!(
-                "OPERATION=wasi:filesystem/types#descriptor.write-via-stream FD={self} OFFSET={offset}"
+                "OPERATION=wasi:filesystem/types#descriptor.write-via-stream FD={self} OFFSET={offset}",
             )
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::WriteViaStream(
@@ -208,15 +208,16 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         ))) {
             Ok(Denied(reason)) => {
                 warn!("Denied REASON={reason} {}", call_summary());
-                Err(reason)?
+                error_future(reason)
             }
             Ok(Deferred) => self.fd.write_via_stream(data, offset),
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
-                Err(code)?
+                error_future(code.into())
             }
         }
     }
@@ -241,15 +242,16 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         )) {
             Ok(Denied(reason)) => {
                 warn!("Denied REASON={reason} {}", call_summary());
-                Err(reason)?
+                error_future(reason)
             }
             Ok(Deferred) => self.fd.append_via_stream(data),
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
-                Err(code)?
+                error_future(code.into())
             }
         }
     }
@@ -266,7 +268,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
     ) -> Result<(), ErrorCode> {
         let call_summary = || {
             format!(
-                "OPERATION=wasi:filesystem/types#descriptor.advise FD={self} OFFSET={offset} LENGTH={length} ADVICE={advice}"
+                "OPERATION=wasi:filesystem/types#descriptor.advise FD={self} OFFSET={offset} LENGTH={length} ADVICE={advice}",
             )
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::Advise((
@@ -285,6 +287,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -313,6 +316,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -341,6 +345,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -373,6 +378,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -400,6 +406,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -419,7 +426,8 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         data_modification_timestamp: NewTimestamp,
     ) -> Result<(), ErrorCode> {
         let call_summary = || {
-            format!("OPERATION=wasi:filesystem/types#descriptor.set-times FD={self} ACCESS-TIMESTAMP={data_access_timestamp} MODIFICATION-TIMESTAMP={data_modification_timestamp}")
+            format!("OPERATION=wasi:filesystem/types#descriptor.set-times FD={self} ACCESS-TIMESTAMP={data_access_timestamp} MODIFICATION-TIMESTAMP={data_modification_timestamp}",
+        )
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::SetTimes((
             &self.fd,
@@ -440,6 +448,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -473,15 +482,40 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         ))) {
             Ok(Denied(reason)) => {
                 warn!("Denied REASON={reason} {}", call_summary());
-                Err(reason)
+                error_stream(reason)
             }
-            Ok(Deferred) => self.fd.read_directory(),
+            Ok(Deferred) => {
+                let (entries, result) = self.fd.read_directory();
+                let (mut tx, rx) = wit_stream::new();
+                let (result_tx, result_rx) = wit_future::new(|| Err(ErrorCode::Other(None)));
+                let fd = self.fd.clone();
+                let call_summary = call_summary();
+                // a sync export can't wait for the entries, they are filtered in the background
+                componentized_rt::executor::spawn(async move {
+                    let result = match filter_directory_entries(
+                        &fd,
+                        entries,
+                        &mut tx,
+                        &call_summary,
+                    )
+                    .await
+                    {
+                        Ok(()) => result.await,
+                        Err(code) => Err(code),
+                    };
+                    // the stream ends before the result is known
+                    drop(tx);
+                    let _ = result_tx.write(result).await;
+                });
+                (rx, result_rx)
+            }
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
-                Err(code)?
+                error_stream(code.into())
             }
         }
     }
@@ -506,6 +540,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -524,7 +559,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         match authorize(&Operation::Descriptor(
             DescriptorOperation::CreateDirectoryAt((
                 &self.fd,
-                DescriptorCreateDirectoryAtArgs { path },
+                DescriptorCreateDirectoryAtArgs { path: path.clone() },
             )),
         )) {
             Ok(Denied(reason)) => {
@@ -535,6 +570,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -565,6 +601,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -603,6 +640,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -625,7 +663,8 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
         data_modification_timestamp: NewTimestamp,
     ) -> Result<(), ErrorCode> {
         let call_summary = || {
-            format!("OPERATION=wasi:filesystem/types#descriptor.set-times-at FD={self} PATH-FLAGS={path_flags} PATH={path} ACCESS-TIMESTAMP={data_access_timestamp} MODIFICATION-TIMESTAMP={data_modification_timestamp}")
+            format!("OPERATION=wasi:filesystem/types#descriptor.set-times-at FD={self} PATH-FLAGS={path_flags} PATH={path} ACCESS-TIMESTAMP={data_access_timestamp} MODIFICATION-TIMESTAMP={data_modification_timestamp}",
+        )
         };
         match authorize(&Operation::Descriptor(DescriptorOperation::SetTimesAt((
             &self.fd,
@@ -653,6 +692,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -700,6 +740,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -761,6 +802,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -791,6 +833,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -822,6 +865,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -863,6 +907,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -896,6 +941,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -931,6 +977,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -984,6 +1031,7 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
@@ -1021,12 +1069,81 @@ impl exports::wasi::filesystem::types::GuestDescriptor for GatedDescriptor {
             Err(code) => {
                 error!(
                     "Latch error CODE={code} {summary}",
+                    code = DisplayLatchErrorCode(code.clone()),
                     summary = call_summary()
                 );
                 Err(code)?
             }
         }
     }
+}
+
+/// Forward the directory entries the latch does not deny, until either end of the stream is
+/// dropped. A latch error ends the stream and fails the read.
+async fn filter_directory_entries(
+    fd: &types::Descriptor,
+    mut entries: StreamReader<DirectoryEntry>,
+    to: &mut wit_bindgen::StreamWriter<DirectoryEntry>,
+    call_summary: &str,
+) -> Result<(), ErrorCode> {
+    loop {
+        let (status, batch) = entries.read(Vec::with_capacity(64)).await;
+        let mut allowed = Vec::with_capacity(batch.len());
+        for entry in batch {
+            match authorize(&Operation::Descriptor(
+                DescriptorOperation::ReadDirectoryEntry((fd, entry.clone())),
+            )) {
+                Ok(Denied(reason)) => {
+                    trace!(
+                        "Denied REASON={reason} {call_summary} NAME={name} TYPE={type_}",
+                        name = entry.name,
+                        type_ = entry.type_
+                    );
+                }
+                Ok(Deferred) => allowed.push(entry),
+                Err(code) => {
+                    error!(
+                        "Latch error CODE={code} {call_summary} NAME={name} TYPE={type_}",
+                        code = DisplayLatchErrorCode(code.clone()),
+                        name = entry.name,
+                        type_ = entry.type_
+                    );
+                    return Err(code.into());
+                }
+            }
+        }
+        if !allowed.is_empty() && !to.write_all(allowed).await.is_empty() {
+            // the reader was dropped
+            return Ok(());
+        }
+        if !matches!(status, StreamResult::Complete(_)) {
+            return Ok(());
+        }
+    }
+}
+
+/// A future resolved to `err`, for the sync exports that return a future.
+fn error_future(code: ErrorCode) -> FutureReader<Result<(), ErrorCode>> {
+    // the default is only written if the write is cancelled
+    let (tx, rx) = wit_future::new(|| Err(ErrorCode::Other(None)));
+    // a sync export can't wait for the write, the reader has not been returned yet, so the write
+    // completes in the background
+    componentized_rt::executor::spawn(async move {
+        let _ = tx.write(Err(code)).await;
+    });
+    rx
+}
+
+/// An empty stream with a future resolved to `err`, for the sync exports that return a stream.
+fn error_stream<T: 'static>(
+    code: ErrorCode,
+) -> (StreamReader<T>, FutureReader<Result<(), ErrorCode>>)
+where
+    T: wit_stream::StreamPayload,
+{
+    // dropping the writer closes the stream without items
+    let (_, rx) = wit_stream::new::<T>();
+    (rx, error_future(code))
 }
 
 impl From<LatchErrorCode> for ErrorCode {
@@ -1046,18 +1163,18 @@ impl From<LatchErrorCode> for ErrorCode {
     }
 }
 
-struct DisplayLatchError<'a>(&'a LatchErrorCode);
-impl std::fmt::Display for DisplayLatchError<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self(LatchErrorCode::InvalidConfig(latch)) => {
+struct DisplayLatchErrorCode(LatchErrorCode);
+impl std::fmt::Display for DisplayLatchErrorCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match &self.0 {
+            LatchErrorCode::InvalidConfig(latch) => {
                 write!(f, "invalid-config<{latch}>")
             }
-            Self(LatchErrorCode::ObservationFailed(latch)) => {
+            LatchErrorCode::ObservationFailed(latch) => {
                 write!(f, "observation-failed<{latch}>")
             }
-            Self(LatchErrorCode::Other(Some(message))) => f.write_str(message),
-            Self(LatchErrorCode::Other(None)) => f.write_str("other"),
+            LatchErrorCode::Other(Some(message)) => f.write_str(message),
+            LatchErrorCode::Other(None) => f.write_str("other"),
         }
     }
 }
@@ -1133,71 +1250,20 @@ impl Display for types::Instant {
     }
 }
 
-impl Display for types::Advice {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.to_string().to_kebab_case())
-    }
-}
-
-impl Display for types::DescriptorFlags {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let names: Vec<String> = self
-            .iter_names()
-            .map(|(name, _flags)| name.to_kebab_case())
-            .collect();
-        f.write_fmt(format_args!("({})", &names.join("|")))
-    }
-}
-
-impl Display for types::OpenFlags {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let names: Vec<String> = self
-            .iter_names()
-            .map(|(name, _flags)| name.to_kebab_case())
-            .collect();
-        f.write_fmt(format_args!("({})", &names.join("|")))
-    }
-}
-
-impl Display for types::PathFlags {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let names: Vec<String> = self
-            .iter_names()
-            .map(|(name, _flags)| name.to_kebab_case())
-            .collect();
-        f.write_fmt(format_args!("({})", &names.join("|")))
-    }
-}
-
-impl Display for types::NewTimestamp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            types::NewTimestamp::NoChange => f.write_str("no-change"),
-            types::NewTimestamp::Now => f.write_str("now"),
-            types::NewTimestamp::Timestamp(instant) => {
-                f.write_fmt(format_args!("timestamp<{instant}>"))
-            }
-        }
-    }
-}
-
-impl Display for types::Instant {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let date = DateTime::from_timestamp(self.seconds as i64, self.nanoseconds)
-            .unwrap()
-            .format("%Y-%m-%d %H:%M:%S.%3fZ");
-
-        f.write_fmt(format_args!("{date}"))
-    }
-}
-
 impl Display for types::DescriptorType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
+        match &self {
+            types::DescriptorType::BlockDevice => f.write_str("block-device"),
+            types::DescriptorType::CharacterDevice => f.write_str("character-device"),
+            types::DescriptorType::Directory => f.write_str("directory"),
+            types::DescriptorType::Fifo => f.write_str("fifo"),
+            types::DescriptorType::SymbolicLink => f.write_str("symbolic-link"),
+            types::DescriptorType::RegularFile => f.write_str("regular-file"),
+            types::DescriptorType::Socket => f.write_str("socket"),
+            types::DescriptorType::Other(None) => f.write_str("other"),
             types::DescriptorType::Other(Some(type_)) => {
-                f.write_fmt(format_args!("other<{type_}>"))
+                write!(f, "other<{type_}>")
             }
-            _ => f.write_str(&self.to_string().to_kebab_case()),
         }
     }
 }

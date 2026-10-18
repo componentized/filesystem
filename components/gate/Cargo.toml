@@ -9,5 +9,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 chrono = { workspace = true }
+componentized-rt = { workspace = true, features = ["executor"] }
 heck = { workspace = true }
 wit-bindgen = { workspace = true }
