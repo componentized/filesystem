@@ -1,0 +1,20 @@
+[package]
+name = "gate"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+chrono = { workspace = true }
+componentized-rt = { workspace = true, features = ["executor"] }
+heck = { workspace = true }
+wit-bindgen = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+test-harness = { workspace = true }
+tokio = { workspace = true }
+wasmtime = { workspace = true }

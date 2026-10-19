@@ -1,0 +1,13 @@
+[package]
+name = "latch-path-glob"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+filesystem-latch = { workspace = true }
+glob = "0.3"
+wit-bindgen = { workspace = true }

@@ -3,8 +3,29 @@ package componentized:filesystem-components;
 world filesystem {
     import wasi:config/store@0.2.0-rc.1;
     import wasi:logging/logging@0.1.0-draft;
+    import componentized:filesystem/latch@0.3.0-dev;
     import wasi:filesystem/preopens@0.3.0;
     export wasi:filesystem/preopens@0.3.0;
     import wasi:filesystem/types@0.3.0;
     export wasi:filesystem/types@0.3.0;
+}
+
+world latch {
+    import wasi:logging/logging@0.1.0-draft;
+    import wasi:config/store@0.2.0-rc.1;
+    import componentized:filesystem/latch@0.3.0-dev;
+    export componentized:filesystem/latch@0.3.0-dev;
+}
+
+world latch-n {
+    export componentized:filesystem/latch@0.3.0-dev;
+    import latch0: componentized:filesystem/latch@0.3.0-dev;
+    import latch1: componentized:filesystem/latch@0.3.0-dev;
+    import latch2: componentized:filesystem/latch@0.3.0-dev;
+    import latch3: componentized:filesystem/latch@0.3.0-dev;
+    import latch4: componentized:filesystem/latch@0.3.0-dev;
+}
+
+world insecure-random {
+    import wasi:random/insecure@0.3.0;
 }

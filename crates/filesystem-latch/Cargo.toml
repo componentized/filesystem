@@ -1,0 +1,13 @@
+[package]
+name = "filesystem-latch"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+wit-bindgen = { workspace = true }
+
+[build-dependencies]
+heck = { workspace = true }
+wit-parser = "0.259"

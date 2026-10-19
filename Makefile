@@ -25,7 +25,6 @@ clean: clean-components clean-wit
 clean-all: clean-components clean-tools clean-wit
 	cargo clean
 
-
 .PHONY: test
 test: components
 	cargo test --workspace

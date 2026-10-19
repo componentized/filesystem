@@ -15,7 +15,16 @@ A collection of utility components that remix wasi:filesystem types and interfac
 ## Components
 
 - [`chroot`](./components/chroot/)
-- [`readonly`](./components/readonly/)
+- [`gate`](./components/gate/)
+- [`latch-deny-all`](./components/latch-deny-all/)
+- [`latch-deny-random`](./components/latch-deny-random/)
+- [`latch-deny-symlink-at`](./components/latch-deny-symlink-at/)
+- [`latch-defer-all`](./components/latch-defer-all/)
+- [`latch-n2`](./components/latch-n2/)
+- [`latch-n3`](./components/latch-n3/)
+- [`latch-n4`](./components/latch-n4/)
+- [`latch-n5`](./components/latch-n5/)
+- [`latch-readonly`](./components/latch-readonly/)
 - [`trace`](./components/trace/)
 
 ## Build

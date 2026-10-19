@@ -1,0 +1,18 @@
+[package]
+name = "latch-deny-random"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+filesystem-latch = { workspace = true }
+wit-bindgen = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+test-harness = { workspace = true }
+tokio = { workspace = true }
+wasmtime = { workspace = true }
