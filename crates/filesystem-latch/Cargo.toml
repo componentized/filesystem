@@ -10,4 +10,4 @@ wit-bindgen = { workspace = true }
 
 [build-dependencies]
 heck = { workspace = true }
-wit-parser = "0.259"
+wit-parser = "0.262"
