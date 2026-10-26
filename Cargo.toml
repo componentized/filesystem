@@ -30,7 +30,7 @@ test-harness = { path = "./crates/test-harness" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 wac-graph = "0.12"
 wasmtime = { version = "49", features = ["component-model-async"] }
-wasmtime-wasi = { version = "49", features = ["p3"] }
+wasmtime-wasi = { version = "50", features = ["p3"] }
 wit-bindgen = { version = "0.63.0", features = ["async-spawn"] }
 
 [profile.release]
