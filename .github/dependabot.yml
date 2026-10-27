@@ -8,6 +8,11 @@ updates:
     directory: "/"
     schedule:
       interval: daily
+    groups:
+      wasmtime:
+        patterns:
+          - "wasmtime"
+          - "wasmtime-*"
   - package-ecosystem: cargo
     directory: "/tools"
     schedule:
