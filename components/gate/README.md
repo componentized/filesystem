@@ -29,7 +29,7 @@ Latch error CODE=invalid-config<latch-path-glob> OPERATION=wasi:filesystem/types
 
 Imports:
 
-- `componentized:filesystem/latch@0.3.0`: decides whether each operation may proceed
+- `componentized:filesystem/latch@0.3.1-dev`: decides whether each operation may proceed
 - `wasi:logging/logging@0.1.0-draft`: logs denials and latch errors
 - `wasi:clocks/system-clock@0.3.0`: types used by wasi:filesystem/types
 - `wasi:filesystem/types@0.3.0`: the descriptors the gated descriptors wrap

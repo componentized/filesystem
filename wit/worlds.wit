@@ -1,4 +1,4 @@
-package componentized:filesystem@0.3.0;
+package componentized:filesystem@0.3.1-dev;
 
 world imports {
     import latch;
