@@ -9,9 +9,9 @@
 /// effects, then the gate reports the final decision to `observe-decision`, where a latch updates
 /// any state it keeps. A latch aggregated with others may not be asked to authorize an operation
 /// another latch already denied, but it always observes the final decision.
-@since(version = 0.3.0-dev)
+@since(version = 0.3.0)
 interface latch {
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     use wasi:filesystem/types@0.3.0.{advice, descriptor, descriptor-flags, directory-entry, error-code as filesystem-error-code, filesize, open-flags, new-timestamp, path-flags};
 
     /// The path of a descriptor, the directory or file an operation is performed on, and that the
@@ -22,25 +22,25 @@ interface latch {
     /// from: `.` and `..` are applied, and symlinks are followed where the host follows them.
     /// Path arguments of an operation are passed as given by the caller, relative to the
     /// descriptor's path.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     type path = string;
 
     /// Arguments to wasi:filesystem/types#descriptor.read-via-stream.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-read-via-stream-args {
         /// The offset in the file to start reading at.
         offset: filesize,
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.write-via-stream.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-write-via-stream-args {
         /// The offset in the file to start writing at.
         offset: filesize,
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.advise.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-advise-args {
         /// The offset of the range the advice applies to.
         offset: filesize,
@@ -51,14 +51,14 @@ interface latch {
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.set-size.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-set-size-args {
         /// The new size of the file.
         size: filesize,
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.set-times.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-set-times-args {
         /// The new access time.
         data-access-timestamp: new-timestamp,
@@ -67,14 +67,14 @@ interface latch {
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.create-directory-at.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-create-directory-at-args {
         /// The directory to create, relative to the descriptor's path.
         path: path,
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.stat-at.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-stat-at-args {
         /// Whether a symlink at the last component of the path is followed.
         path-flags: path-flags,
@@ -83,7 +83,7 @@ interface latch {
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.set-times-at.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-set-times-at-args {
         /// Whether a symlink at the last component of the path is followed.
         path-flags: path-flags,
@@ -96,7 +96,7 @@ interface latch {
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.link-at.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-link-at-args {
         /// Whether a symlink at the last component of the old path is followed.
         old-path-flags: path-flags,
@@ -109,7 +109,7 @@ interface latch {
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.open-at.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-open-at-args {
         /// Whether a symlink at the last component of the path is followed.
         path-flags: path-flags,
@@ -123,21 +123,21 @@ interface latch {
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.readlink-at.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-readlink-at-args {
         /// The symlink to read, relative to the descriptor's path.
         path: path,
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.remove-directory-at.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-remove-directory-at-args {
         /// The directory to remove, relative to the descriptor's path.
         path: path,
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.rename-at.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-rename-at-args {
         /// The file or directory to rename, relative to the descriptor's path.
         old-path: path,
@@ -148,7 +148,7 @@ interface latch {
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.symlink-at.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-symlink-at-args {
         /// The contents of the symlink, the path it points to. It is not resolved by the gate.
         old-path: path,
@@ -157,14 +157,14 @@ interface latch {
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.unlink-file-at.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-unlink-file-at-args {
         /// The file to unlink, relative to the descriptor's path.
         path: path,
     }
 
     /// Arguments to wasi:filesystem/types#descriptor.metadata-hash-at.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     record descriptor-metadata-hash-at-args {
         /// Whether a symlink at the last component of the path is followed.
         path-flags: path-flags,
@@ -173,7 +173,7 @@ interface latch {
     }
 
     /// Operations of the wasi:filesystem/preopens interface.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     variant preopens-operation {
         /// Authorized before the preopens are returned. A denial returns no preopens.
         get-directories,
@@ -187,7 +187,7 @@ interface latch {
     /// The borrowed descriptor is the descriptor the operation is performed on, followed by its
     /// path, a latch may query the descriptor, for example for its type or flags. A denial fails
     /// the operation with the denial's error code, unless noted otherwise.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     variant descriptor-operation {
         /// Authorized before reading a file. A denial returns an empty stream, the future
         /// resolves to the error code.
@@ -247,7 +247,7 @@ interface latch {
     }
 
     /// Operations of the wasi:filesystem package a gate asks a latch to authorize.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     variant operation {
         /// An operation of wasi:filesystem/preopens.
         preopens(preopens-operation),
@@ -256,7 +256,7 @@ interface latch {
     }
 
     /// Whether the operation is allowed to proceed.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     variant decision {
         /// The latch raises no objection, the operation proceeds unless another latch denies it.
         deferred,
@@ -267,12 +267,12 @@ interface latch {
     }
 
     /// The name of a latch component, identifying which latch reported an error.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     type latch-name = string;
 
     /// A latch was unable to decide or observe. The gate fails the operation, a directory entry
     /// fails the directory read. Getting the preopens can't fail, the gate traps instead.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     variant error-code {
         /// The latch's configuration is invalid, the cause is logged by the latch.
         invalid-config(latch-name),
@@ -287,7 +287,7 @@ interface latch {
     /// Must not have side effects. When latches are aggregated, a latch is not asked about an
     /// operation another latch already denied, so state changed here could disagree with what
     /// actually happened. Act on decisions in `observe-decision` instead.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     authorize: func(operation: operation) -> result<decision, error-code>;
 
     /// Observe the final decision for an operation, after `authorize` returned a decision.
@@ -298,6 +298,6 @@ interface latch {
     /// when `authorize` returned an error.
     ///
     /// An error fails the operation, since the latch could not act on the decision.
-    @since(version = 0.3.0-dev)
+    @since(version = 0.3.0)
     observe-decision: func(final-decision: decision, operation: operation) -> result<_, error-code>;
 }
