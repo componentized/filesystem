@@ -14,4 +14,4 @@ Imports:
 
 Exports:
 
-- `componentized:filesystem/latch@0.3.1`: the latch
+- `componentized:filesystem/latch@0.3.2-dev`: the latch
