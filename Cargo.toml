@@ -20,11 +20,11 @@ members = [
 ]
 
 [workspace.dependencies]
-chrono = { git = "https://github.com/chronotope/chrono.git", branch = "0.5.x" }
 componentized-rt = { path = "./crates/componentized-rt" }
 filesystem-latch = { path = "./crates/filesystem-latch" }
 filesystem-latch-n = { path = "./crates/filesystem-latch-n" }
 heck = "0.5"
+jiff = { version = "1.0", default-features = false, features = ["std", "alloc"] }
 tempfile = "3"
 test-harness = { path = "./crates/test-harness" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }

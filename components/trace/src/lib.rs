@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
-use chrono::DateTime;
 use heck::ToKebabCase;
+use jiff::{tz::TimeZone, Timestamp};
 
 use exports::wasi::filesystem::preopens::Guest as Preopens;
 use exports::wasi::filesystem::types::{
@@ -577,11 +577,18 @@ impl Display for types::NewTimestamp {
 
 impl Display for types::Instant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let date = DateTime::from_timestamp(self.seconds as i64, self.nanoseconds)
-            .unwrap()
-            .format("%Y-%m-%d %H:%M:%S.%3fZ");
-
-        f.write_fmt(format_args!("{date}"))
+        let dt = TimeZone::UTC
+            .to_datetime(Timestamp::new(self.seconds, self.nanoseconds as i32).unwrap_or_default());
+        f.write_fmt(format_args!(
+            "{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}Z",
+            dt.year(),
+            dt.month(),
+            dt.day(),
+            dt.hour(),
+            dt.minute(),
+            dt.second(),
+            dt.millisecond(),
+        ))
     }
 }
 
