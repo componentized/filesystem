@@ -80,4 +80,4 @@ Imports:
 
 Exports:
 
-- `componentized:filesystem/latch@0.3.1-dev`: the latch
+- `componentized:filesystem/latch@0.3.1`: the latch

@@ -62,7 +62,7 @@ pub mod latch_bindings {
             package componentized:test-harness;
 
             world latch {
-                import componentized:filesystem/latch@0.3.1-dev;
+                import componentized:filesystem/latch@0.3.1;
             }
         ",
         world: "componentized:test-harness/latch",
@@ -695,7 +695,7 @@ impl Harness {
 /// The most latches a `latch-n` component aggregates.
 const LATCH_N_MAX: usize = 5;
 
-const LATCH_INTERFACE: &str = "componentized:filesystem/latch@0.3.1-dev";
+const LATCH_INTERFACE: &str = "componentized:filesystem/latch@0.3.1";
 
 /// Whether the latch component imports a latch, which it wraps.
 fn imports_latch(latch: &[u8]) -> Result<bool> {
