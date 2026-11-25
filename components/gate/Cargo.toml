@@ -8,9 +8,9 @@ license = "Apache-2.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-chrono = { workspace = true }
 componentized-rt = { workspace = true, features = ["executor"] }
 heck = { workspace = true }
+jiff = { workspace = true }
 wit-bindgen = { workspace = true }
 
 [dev-dependencies]
